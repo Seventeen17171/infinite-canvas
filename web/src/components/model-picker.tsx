@@ -49,7 +49,7 @@ export function ModelPicker({ config, value, channelId, capability, onChange, wo
         }) : [])];
     }, [capability, config, token, workflowEnabled]);
     const modelLabel = useAutoDLWorkflowNames(channelOptions);
-    const currentOption = useMemo(() => {
+    const currentOption = useMemo<PickerOption | undefined>(() => {
         if (workflowRef && workflowEnabled) return channelOptions.find((item) => "workflowRef" in item && item.key === `workflow:${JSON.stringify([workflowRef.scope, workflowRef.channelId, workflowRef.kind, workflowRef.workflowId])}`);
         if (!value) return undefined;
         return channelOptions.find((item) => item.model === value && item.channelId === channelId) || channelOptions.find((item) => item.model === value);

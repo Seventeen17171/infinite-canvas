@@ -200,6 +200,7 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 | `error` | text | 失败摘要 |
 | `error_detail` | text | 失败详情或最近一次轮询错误详情 |
 | `request_body` | text | 创建任务时的请求摘要 |
+| `parameter_translation_snapshot` | text | 自定义转译视频的规则原文、变量、任务 ID 和已完成结果快照；不保存渠道密钥，不通过 JSON 响应返回 |
 | `response_body` | text | 创建任务时的响应摘要 |
 | `last_response` | text | 最近一次状态响应摘要 |
 | `credits` | decimal(20,2) | 创建任务时预扣算力点 |

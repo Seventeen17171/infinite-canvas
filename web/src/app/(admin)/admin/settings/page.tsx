@@ -247,7 +247,7 @@ export default function AdminSettingsPage() {
 
     const saveChannel = async () => {
         const values = await channelForm.validateFields();
-        const channel = normalizeChannel(isWorkflowProtocol(values.protocol) ? { ...workflowChannelDraft, ...channelForm.getFieldsValue(true), ...values } : { ...values, modelCapabilities: channelForm.getFieldValue("modelCapabilities") });
+        const channel = normalizeChannel(isWorkflowProtocol(values.protocol) ? { ...workflowChannelDraft, ...channelForm.getFieldsValue(true), ...values } : { ...values, modelCapabilities: channelForm.getFieldValue("modelCapabilities"), parameterTranslation: channelForm.getFieldValue("parameterTranslation") });
         if (channel.protocol === "runninghub" && (!channel.baseUrl.trim() || (!channel.apiKey.trim() && editingChannelIndex === null))) {
             message.error("请填写 RunningHub Base URL 和积分 API Key");
             return;
@@ -278,8 +278,8 @@ export default function AdminSettingsPage() {
 
     const closeChannelModelSelector = () => setIsModelSelectorOpen(false);
 
-    const confirmChannelModelSelector = (models: string[], modelCapabilities: ModelCapabilities) => {
-        channelForm.setFieldsValue({ models, modelCapabilities });
+    const confirmChannelModelSelector = (models: string[], modelCapabilities: ModelCapabilities, parameterTranslation: string) => {
+        channelForm.setFieldsValue({ models, modelCapabilities, parameterTranslation });
         rememberModels(models);
         closeChannelModelSelector();
     };
@@ -1011,8 +1011,8 @@ export default function AdminSettingsPage() {
                 {isModelSelectorOpen ? (
                     <ChannelModelSelectorModal
                         channel={channelForm.getFieldsValue(true)}
+                        parameterTranslation={channelForm.getFieldValue("parameterTranslation") || ""}
                         models={channelForm.getFieldValue("models") || []}
-                        sourceModels={knownModels}
                         onCancel={closeChannelModelSelector}
                         onConfirm={confirmChannelModelSelector}
                         onFetchModels={fetchChannelModelList}
@@ -1206,6 +1206,7 @@ function normalizeChannel(item: Partial<AdminModelChannel> = {}): AdminModelChan
         apiKey: item.apiKey || "",
         models: item.models || [],
         modelCapabilities: item.modelCapabilities || {},
+        parameterTranslation: item.parameterTranslation || "",
         uploadApiKey: item.uploadApiKey || "",
         bridgeId: item.bridgeId || "",
         comfyUrl: item.comfyUrl || "",

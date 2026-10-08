@@ -82,6 +82,9 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		}
 		credits *= float64(readAIRequestCount(body, contentType, true))
 	}
+	if serveParameterTranslationVideo(w, r, body, channel, user, credits, startedAt) {
+		return
+	}
 	upstreamPath := resolveAIProxyPath(channel, modelName, "/videos")
 	if service.IsTokenDanceChannel(channel) {
 		prepared, _, prepareErr := prepareAIProtocolRequest(aiProtocolRequest{
@@ -173,7 +176,7 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		ChannelName:     channel.Name,
 		Source:          readVideoTaskSource(r),
 		SourceID:        readVideoTaskSourceID(r),
-		ClientTaskID:     readClientVideoTaskID(r),
+		ClientTaskID:    readClientVideoTaskID(r),
 		UpstreamTaskID:  parsed.UpstreamTaskID,
 		UpstreamVideoID: parsed.UpstreamVideoID,
 		Status:          parsed.Status,
@@ -290,6 +293,18 @@ func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdat
 	}
 	if err != nil {
 		return service.VideoTaskPollUpdate{}, err
+	}
+	if task.ParameterTranslationSnapshot != "" {
+		update, err := service.PollParameterTranslationVideo(task, channel)
+		if err != nil || service.IsCompletedVideoTaskStatus(update.Status) || service.IsFailedVideoTaskStatus(update.Status) {
+			startedAt, _ := time.Parse(time.RFC3339Nano, task.CreatedAt)
+			message := firstNonEmpty(update.Error, update.ErrorDetail)
+			if err != nil {
+				message = err.Error()
+			}
+			saveAIProxyLog(aiLogContext{StartedAt: startedAt, OutcomeKnown: true, Endpoint: "/videos/" + task.ID, Method: http.MethodGet, Model: task.Model, Channel: channel, UserID: task.UserID, UserDisplayName: task.UserDisplayName, RequestBody: fmt.Sprintf(`{"taskId":%q}`, task.ID)}, update.StatusCode, update.ResponseBody, message)
+		}
+		return update, err
 	}
 	pollID := firstNonEmpty(task.UpstreamTaskID, task.ID)
 	if isAIProtocolVideoID(task.Model, task.UpstreamVideoID) {

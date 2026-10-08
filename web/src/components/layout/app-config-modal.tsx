@@ -23,6 +23,7 @@ import type { WorkflowChannelData, WorkflowEntry } from "@/lib/workflow-channel"
 import { listWorkflowChannels, readWorkflowChannel, replaceWorkflowChannels, saveWorkflowChannel } from "@/services/workflow-channel-storage";
 import { filterChannelModelsByCapability, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type LocalModelChannel, type ModelCapabilities, type ModelCapability } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
 
 type ModelGroup = {
     capability: ModelCapability;
@@ -48,6 +49,7 @@ export function AppConfigModal() {
     const [loadingModels, setLoadingModels] = useState(false);
     const [savingConfig, setSavingConfig] = useState(false);
     const [modelSelectChannelId, setModelSelectChannelId] = useState("");
+    const [parameterTranslation, setParameterTranslation] = useState<string>();
     const [workflowEntries, setWorkflowEntries] = useState<WorkflowEntry[]>([]);
     const accountConfigRef = useRef<{ ready: boolean; workflowChannels?: WorkflowChannelData[] }>({ ready: false });
     const [remoteStorageSyncEnabled, setRemoteStorageSyncEnabled] = useState(false);
@@ -83,6 +85,16 @@ export function AppConfigModal() {
     const modelSelectChannel = normalizeLocalChannels(config).find((channel) => channel.id === modelSelectChannelId);
 
     useEffect(() => {
+        setParameterTranslation(undefined);
+        if (!modelSelectChannelId) return;
+        let canceled = false;
+        void useChannelTranslationStore.getState().load(user?.id || "guest")
+            .then((records) => { if (!canceled) setParameterTranslation(records[modelSelectChannelId] || ""); })
+            .catch((error) => { if (!canceled) message.error(error instanceof Error ? error.message : "读取传参配置失败"); });
+        return () => { canceled = true; };
+    }, [modelSelectChannelId, user?.id, message]);
+
+    useEffect(() => {
         setWorkflowEntries([]);
         if (!modelSelectChannel || !isWorkflowProtocol(modelSelectChannel.protocol)) return;
         const protocol = modelSelectChannel.protocol;
@@ -100,6 +112,7 @@ export function AppConfigModal() {
         if (!isConfigOpen || !token || !user?.id) return;
         const accountToken = token;
         const accountId = user.id;
+        const translationRevision = useChannelTranslationStore.getState().revisions[accountId] || 0;
         let canceled = false;
         void fetchUserConfig(accountToken)
             .then(async (payload) => {
@@ -111,8 +124,10 @@ export function AppConfigModal() {
                 setRemoteStorageSyncEnabled(syncS3);
                 setRemoteWebDAVStorageSyncEnabled(syncWebDAV);
                 if (remoteConfig) {
-                    const { workflowChannels, ...modelFields } = remoteConfig;
+                    const { workflowChannels, channelTranslations, ...modelFields } = remoteConfig;
                     delete modelFields.workflowSyncTouched;
+                    await useChannelTranslationStore.getState().replace(accountId, channelTranslations || [], translationRevision);
+                    if (canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) return;
                     if (workflowChannels !== undefined) {
                         try {
                             await replaceWorkflowChannels(accountId, workflowChannels);
@@ -190,7 +205,9 @@ export function AppConfigModal() {
                     const activeKeys = new Set(workflowChannels.map((channel) => `${channel.protocol}:${channel.id}`));
                     workflowData = stored.filter((channel) => activeKeys.has(`${channel.protocol}:${channel.channelId}`));
                 }
-                await syncUserModelConfig(token, configToSave, workflowData);
+                const translations = user?.id && accountConfigRef.current.ready
+                    ? await useChannelTranslationStore.getState().list(user.id, normalizeLocalChannels(configToSave).map((channel) => channel.id)) : undefined;
+                await syncUserModelConfig(token, configToSave, workflowData, translations);
             }
             const providers = {
                 ...(config.syncStorageConfig || remoteStorageSyncEnabled ? { s3: config.syncStorageConfig ? userStorage : { ...userStorage, enabled: false, endpoint: "", bucket: "", accessKeyId: "", secretAccessKey: "" } } : {}),
@@ -279,6 +296,7 @@ export function AppConfigModal() {
 
     const removeLocalChannel = (id: string) => {
         updateLocalChannels(normalizeLocalChannels(config).filter((channel) => channel.id !== id));
+        void useChannelTranslationStore.getState().save(user?.id || "guest", id, "").catch((error) => message.error(error instanceof Error ? error.message : "删除传参配置失败"));
     };
 
     const loginTokenDance = (channelId: string) => {
@@ -290,8 +308,16 @@ export function AppConfigModal() {
 
     const closeLocalModelSelector = () => setModelSelectChannelId("");
 
-    const confirmLocalModelSelector = (models: string[], modelCapabilities: ModelCapabilities) => {
+    const confirmLocalModelSelector = async (models: string[], modelCapabilities: ModelCapabilities, source: string) => {
         if (!modelSelectChannelId) return;
+        const accountId = user?.id || "guest";
+        if (parameterTranslation !== undefined && source !== parameterTranslation) {
+            if (token && !accountConfigRef.current.ready) throw new Error("账号配置尚未加载成功，请重新打开设置后保存传参配置");
+            const latest = (await useChannelTranslationStore.getState().load(accountId))[modelSelectChannelId] || "";
+            if (latest !== parameterTranslation) throw new Error("渠道传参配置已更新，请重新打开模型设置后保存");
+            await useChannelTranslationStore.getState().save(accountId, modelSelectChannelId, source);
+            if ((useUserStore.getState().user?.id || "guest") !== accountId) throw new Error("登录状态已变化");
+        }
         patchLocalChannel(modelSelectChannelId, { models, modelCapabilities });
         closeLocalModelSelector();
     };
@@ -331,7 +357,8 @@ export function AppConfigModal() {
         if (useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) {
             throw new Error("登录状态已变化");
         }
-        await syncUserModelConfig(accountToken, current, saved);
+        const translations = await useChannelTranslationStore.getState().list(accountId, normalizeLocalChannels(current).map((channel) => channel.id));
+        await syncUserModelConfig(accountToken, current, saved, translations);
         if (useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) {
             throw new Error("登录状态已变化");
         }
@@ -642,7 +669,9 @@ export function AppConfigModal() {
                 </Modal>
             ) : modelSelectChannel ? (
                 <ChannelModelSelectorModal
+                    key={`${user?.id || "guest"}:${modelSelectChannel.id}`}
                     channel={modelSelectChannel}
+                    parameterTranslation={parameterTranslation}
                     models={modelSelectChannel.models}
                     onCancel={closeLocalModelSelector}
                     onConfirm={confirmLocalModelSelector}

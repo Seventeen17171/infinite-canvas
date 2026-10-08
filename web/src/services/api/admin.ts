@@ -189,6 +189,7 @@ export type AdminModelChannel = {
     apiKey: string;
     models: string[];
     modelCapabilities?: ModelCapabilities;
+    parameterTranslation?: string;
     weight: number;
     timeout: number;
     enabled: boolean;
@@ -227,6 +228,7 @@ export type AdminModelCost = {
 };
 
 export type AdminPublicModelChannelInfo = {
+	parameterTranslationModels?: string[];
     id: string;
     protocol: AdminModelChannel["protocol"];
     name: string;
@@ -320,6 +322,7 @@ export type AdminAICallLog = {
     channelId: string;
     channelName: string;
     status: number;
+    failed: boolean;
     durationMs: number;
     credits: number;
     requestBody: string;

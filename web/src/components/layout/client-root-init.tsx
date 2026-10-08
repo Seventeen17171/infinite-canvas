@@ -10,6 +10,7 @@ import { replaceWorkflowChannels } from "@/services/workflow-channel-storage";
 import { STORAGE_SYNC_FAILED_EVENT, defaultUserStorageProvider, defaultUserWebDAVStorageProvider, saveUserStorageProvider, saveUserWebDAVStorageProvider } from "@/services/image-storage";
 import { defaultConfig, useConfigStore, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
+import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const { message } = App.useApp();
@@ -71,6 +72,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         if (isTokenDanceCallback || !token || !user?.id) return;
         const accountToken = token;
         const accountId = user.id;
+        const translationRevision = useChannelTranslationStore.getState().revisions[accountId] || 0;
         let canceled = false;
 		void fetchUserConfig(accountToken)
 			.then(async (payload) => {
@@ -79,7 +81,9 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
 				const syncS3 = payload.modelConfig?.syncStorageConfig === true;
                 const syncWebDAV = payload.modelConfig?.syncWebDAVStorageConfig === true;
                 if (payload.modelConfig) {
-                    const { workflowChannels, ...modelConfig } = payload.modelConfig;
+                    const { workflowChannels, channelTranslations, ...modelConfig } = payload.modelConfig;
+					await useChannelTranslationStore.getState().replace(accountId, channelTranslations || [], translationRevision);
+					if (canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) return;
 					if (workflowChannels !== undefined) {
 						try {
 							await replaceWorkflowChannels(accountId, workflowChannels);

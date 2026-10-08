@@ -31,7 +31,8 @@ type ModelChannel struct {
 	WorkflowDir  string          `json:"workflowDir,omitempty"`
 	Workflows    []WorkflowEntry `json:"workflows,omitempty"`
 
-	ModelCapabilities map[string]string `json:"modelCapabilities,omitempty"`
+	ModelCapabilities    map[string]string `json:"modelCapabilities,omitempty"`
+	ParameterTranslation string            `json:"parameterTranslation,omitempty"`
 }
 
 type WorkflowFieldMapping struct {
@@ -115,16 +116,17 @@ type SystemPromptSetting struct {
 }
 
 type PublicModelChannelInfo struct {
-	ID        string            `json:"id"`
-	Protocol  string            `json:"protocol"`
-	Name      string            `json:"name"`
-	BaseURL   string            `json:"baseUrl"`
-	Models    []string          `json:"models"`
-	Weight    int               `json:"weight"`
-	Timeout   int               `json:"timeout"`
-	Enabled   bool              `json:"enabled"`
-	Remark    string            `json:"remark"`
-	Workflows []WorkflowSummary `json:"workflows,omitempty"`
+	ParameterTranslationModels []string          `json:"parameterTranslationModels,omitempty"`
+	ID                         string            `json:"id"`
+	Protocol                   string            `json:"protocol"`
+	Name                       string            `json:"name"`
+	BaseURL                    string            `json:"baseUrl"`
+	Models                     []string          `json:"models"`
+	Weight                     int               `json:"weight"`
+	Timeout                    int               `json:"timeout"`
+	Enabled                    bool              `json:"enabled"`
+	Remark                     string            `json:"remark"`
+	Workflows                  []WorkflowSummary `json:"workflows,omitempty"`
 
 	ModelCapabilities map[string]string `json:"modelCapabilities,omitempty"`
 }
