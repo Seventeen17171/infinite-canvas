@@ -2,6 +2,7 @@ package main
 
 import (
 	"log"
+	"net"
 
 	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/handler"
@@ -19,8 +20,10 @@ func main() {
 	if err := service.EnsureDefaultAgentSkills(); err != nil {
 		log.Fatal(err)
 	}
-	service.StartPromptSyncScheduler()
+	if !config.Cfg.DisablePromptSync {
+		service.StartPromptSyncScheduler()
+	}
 	service.StartCanvasProjectCleanupScheduler()
 	handler.StartVideoTaskPoller()
-	log.Fatal(router.New().Run(":" + config.Cfg.Port))
+	log.Fatal(router.New().Run(net.JoinHostPort(config.Cfg.BindHost, config.Cfg.Port)))
 }

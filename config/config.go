@@ -13,6 +13,8 @@ import (
 
 type Config struct {
 	Port                string `env:"PORT" envDefault:"8080"`
+	BindHost            string `env:"CANVAS_BIND_HOST" envDefault:""`
+	DisablePromptSync   bool   `env:"CANVAS_DISABLE_PROMPT_SYNC" envDefault:"false"`
 	AdminUsername       string `env:"ADMIN_USERNAME" envDefault:"admin"`
 	AdminPassword       string `env:"ADMIN_PASSWORD" envDefault:"infinite-canvas"`
 	JWTSecret           string `env:"JWT_SECRET" envDefault:"infinite-canvas"`

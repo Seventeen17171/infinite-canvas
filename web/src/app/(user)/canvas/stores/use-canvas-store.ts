@@ -344,12 +344,13 @@ export const useCanvasStore = create<CanvasStore>()(
                 const remoteProjects = await listCanvasProjects(token).catch(
                     () => null,
                 );
-                if (!remoteProjects) return;
+                if (!remoteProjects || useUserStore.getState().token !== token) return;
                 const projects = await reconcileCanvasProjects(
                     token,
                     remoteProjects,
                     localProjects,
                 );
+                if (useUserStore.getState().token !== token) return;
                 if (saveTimer) {
                     clearTimeout(saveTimer);
                     saveTimer = null;

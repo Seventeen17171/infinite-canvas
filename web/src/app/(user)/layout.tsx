@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useRef, type ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
 
 import { AppTopNav } from "@/components/layout/app-top-nav";
@@ -14,7 +14,6 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     const router = useRouter();
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
-    const wasLoggedOutRef = useRef(false);
     const isProtectedPage = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
 
     useEffect(() => {
@@ -23,30 +22,34 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     }, [isProtectedPage, isReady, pathname, router, user]);
 
     useEffect(() => {
-        if (!isReady) return;
-        if (!user) {
-            wasLoggedOutRef.current = true;
-            return;
-        }
-        const syncCanvasAfterLogin = wasLoggedOutRef.current;
+        if (!isReady || !user) return;
         const token = useUserStore.getState().token;
         if (!token) return;
-        wasLoggedOutRef.current = false;
+        let cancelled = false;
+        let unsubscribeHydration = () => { };
+        const isCurrentSession = () => !cancelled && useUserStore.getState().token === token;
         fetchUserConfig(token).then(async (config) => {
+            if (!isCurrentSession()) return;
             const syncEnabled = config.syncCapabilities?.userData === true;
             const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
+            if (!isCurrentSession()) return;
             const canvasStore = useCanvasStore.getState();
             canvasStore.setSyncEnabled(syncEnabled);
-            if (
-                syncCanvasAfterLogin &&
-                syncEnabled &&
-                canvasStore.hydrated
-            ) {
-                void canvasStore.syncWithRemote(token, true);
+            const syncCanvas = () => {
+                unsubscribeHydration();
+                if (isCurrentSession()) void useCanvasStore.getState().syncWithRemote(token, true);
+            };
+            if (syncEnabled) {
+                if (useCanvasStore.persist.hasHydrated()) syncCanvas();
+                else unsubscribeHydration = useCanvasStore.persist.onFinishHydration(syncCanvas);
             }
             const { useAssetStore } = await import("@/stores/use-asset-store");
-            void useAssetStore.getState().hydrateAccountAssets(token, syncEnabled);
+            if (isCurrentSession()) void useAssetStore.getState().hydrateAccountAssets(token, syncEnabled);
         }).catch(() => { });
+        return () => {
+            cancelled = true;
+            unsubscribeHydration();
+        };
     }, [isReady, user]);
 
     return (

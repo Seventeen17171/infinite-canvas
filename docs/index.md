@@ -14,6 +14,7 @@
 
 ## 开发文档
 
+- [团队版独立二开范围](overview/team-fork.md)
 - [本地开发](backend/local-development.md)
 - [接口响应约定](backend/api-response.md)
 - [系统配置数据结构](backend/system-settings.md)
