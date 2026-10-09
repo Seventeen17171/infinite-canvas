@@ -42,9 +42,13 @@ func (tx *ProductionTx) Request(actorID, requestID string) (model.ProjectRequest
 	return request, err == nil, err
 }
 
-func (tx *ProductionTx) Project(id, actorID string) (model.ProductionProject, bool, error) {
+func (tx *ProductionTx) Project(id, actorID string, lock ...bool) (model.ProductionProject, bool, error) {
 	var project model.ProductionProject
-	err := tx.db.Where("id = ? AND (created_by = ? OR producer_id = ?)", id, actorID, actorID).Take(&project).Error
+	query := tx.db.Where("id = ? AND (created_by = ? OR producer_id = ?)", id, actorID, actorID)
+	if len(lock) > 0 && lock[0] && tx.db.Dialector.Name() != "sqlite" {
+		query = query.Clauses(clause.Locking{Strength: "UPDATE"})
+	}
+	err := query.Take(&project).Error
 	if errors.Is(err, gorm.ErrRecordNotFound) {
 		return project, false, nil
 	}

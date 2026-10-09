@@ -13,33 +13,38 @@ import { isCanvasImageNodeType, isPanoramaNodeType } from "../utils/canvas-panor
 import { ImageToolSettingsModal, type ImageToolbarSettingsTool } from "./canvas-image-toolbar-settings-modal";
 import { IMAGE_QUICK_TOOLS_STORAGE_KEY, PANORAMA_QUICK_TOOLS_STORAGE_KEY, buildImageToolbarTools, defaultImageQuickToolIds, defaultPanoramaQuickToolIds, readImageQuickToolsConfig, type ImageQuickToolId } from "./canvas-image-toolbar-tools";
 
+const noopNodeAction = () => {};
+
 type CanvasNodeHoverToolbarProps = {
+    visibleToolIds?: readonly string[];
+    persistToolPreferences?: boolean;
+    disabled?: boolean;
     node: CanvasNodeData | null;
     viewport: ViewportTransform;
     onKeep: (nodeId: string) => void;
     onLeave: () => void;
-    onInfo: (node: CanvasNodeData) => void;
+    onInfo?: (node: CanvasNodeData) => void;
     onDecreaseFont: (node: CanvasNodeData) => void;
     onIncreaseFont: (node: CanvasNodeData) => void;
-    onToggleDialog: (node: CanvasNodeData) => void;
-    onGenerateImage: (node: CanvasNodeData) => void;
-    onUpload: (node: CanvasNodeData) => void;
-    onExtractAudio: (node: CanvasNodeData) => void;
-    onTrimAudio: (node: CanvasNodeData) => void;
-    onDownload: (node: CanvasNodeData) => void;
-    onSaveAsset: (node: CanvasNodeData) => void;
-    onUploadMediaToCloud: (node: CanvasNodeData) => void;
-    onUploadImageToCloud: (node: CanvasNodeData) => void;
-    onMaskEdit: (node: CanvasNodeData) => void;
-    onCrop: (node: CanvasNodeData) => void;
-    onSplit: (node: CanvasNodeData) => void;
-    onUpscale: (node: CanvasNodeData) => void;
-    onSuperResolve: (node: CanvasNodeData) => void;
-    onAngle: (node: CanvasNodeData) => void;
-    onViewImage: (node: CanvasNodeData) => void;
-    onReversePrompt: (node: CanvasNodeData) => void;
-    onRetry: (node: CanvasNodeData) => void;
-    onToggleFreeResize: (node: CanvasNodeData) => void;
+    onToggleDialog?: (node: CanvasNodeData) => void;
+    onGenerateImage?: (node: CanvasNodeData) => void;
+    onUpload?: (node: CanvasNodeData) => void;
+    onExtractAudio?: (node: CanvasNodeData) => void;
+    onTrimAudio?: (node: CanvasNodeData) => void;
+    onDownload?: (node: CanvasNodeData) => void;
+    onSaveAsset?: (node: CanvasNodeData) => void;
+    onUploadMediaToCloud?: (node: CanvasNodeData) => void;
+    onUploadImageToCloud?: (node: CanvasNodeData) => void;
+    onMaskEdit?: (node: CanvasNodeData) => void;
+    onCrop?: (node: CanvasNodeData) => void;
+    onSplit?: (node: CanvasNodeData) => void;
+    onUpscale?: (node: CanvasNodeData) => void;
+    onSuperResolve?: (node: CanvasNodeData) => void;
+    onAngle?: (node: CanvasNodeData) => void;
+    onViewImage?: (node: CanvasNodeData) => void;
+    onReversePrompt?: (node: CanvasNodeData) => void;
+    onRetry?: (node: CanvasNodeData) => void;
+    onToggleFreeResize?: (node: CanvasNodeData) => void;
     onDelete: (node: CanvasNodeData) => void;
 };
 
@@ -54,32 +59,35 @@ type ToolbarTool = {
 };
 
 export function CanvasNodeHoverToolbar({
+    visibleToolIds,
+    persistToolPreferences = true,
+    disabled = false,
     node,
     viewport,
     onKeep,
     onLeave,
-    onInfo,
+    onInfo = noopNodeAction,
     onDecreaseFont,
     onIncreaseFont,
-    onToggleDialog,
-    onGenerateImage,
-    onUpload,
-    onExtractAudio,
-    onTrimAudio,
-    onDownload,
-    onSaveAsset,
-    onUploadMediaToCloud,
-    onUploadImageToCloud,
-    onMaskEdit,
-    onCrop,
-    onSplit,
-    onUpscale,
-    onSuperResolve,
-    onAngle,
-    onViewImage,
-    onReversePrompt,
-    onRetry,
-    onToggleFreeResize,
+    onToggleDialog = noopNodeAction,
+    onGenerateImage = noopNodeAction,
+    onUpload = noopNodeAction,
+    onExtractAudio = noopNodeAction,
+    onTrimAudio = noopNodeAction,
+    onDownload = noopNodeAction,
+    onSaveAsset = noopNodeAction,
+    onUploadMediaToCloud = noopNodeAction,
+    onUploadImageToCloud = noopNodeAction,
+    onMaskEdit = noopNodeAction,
+    onCrop = noopNodeAction,
+    onSplit = noopNodeAction,
+    onUpscale = noopNodeAction,
+    onSuperResolve = noopNodeAction,
+    onAngle = noopNodeAction,
+    onViewImage = noopNodeAction,
+    onReversePrompt = noopNodeAction,
+    onRetry = noopNodeAction,
+    onToggleFreeResize = noopNodeAction,
     onDelete,
 }: CanvasNodeHoverToolbarProps) {
     const [quickToolsConfigs, setQuickToolsConfigs] = useState(() => ({
@@ -96,6 +104,7 @@ export function CanvasNodeHoverToolbar({
     const { ids: quickImageToolIds, showLabels: showImageToolLabels } = quickToolsConfigs[quickToolsStorageKey];
 
     useEffect(() => {
+        if (!persistToolPreferences) return;
         const readQuickToolsConfig = (storageKey: string, defaultIds: ImageQuickToolId[]) => {
             try {
                 const stored = window.localStorage.getItem(storageKey);
@@ -116,7 +125,7 @@ export function CanvasNodeHoverToolbar({
             [IMAGE_QUICK_TOOLS_STORAGE_KEY]: readQuickToolsConfig(IMAGE_QUICK_TOOLS_STORAGE_KEY, defaultImageQuickToolIds),
             [PANORAMA_QUICK_TOOLS_STORAGE_KEY]: readQuickToolsConfig(PANORAMA_QUICK_TOOLS_STORAGE_KEY, defaultPanoramaQuickToolIds),
         });
-    }, []);
+    }, [persistToolPreferences]);
 
     useEffect(() => {
         setImageToolSettingsOpen(false);
@@ -145,7 +154,9 @@ export function CanvasNodeHoverToolbar({
         }
         copyText(prompt, "提示词已复制");
     };
-    const imageTools = buildImageToolbarTools(node, { onUpload, onToggleFreeResize, onMaskEdit, onCrop, onSplit, onUpscale, onSuperResolve, onAngle, onViewImage, onCopyPrompt: copyImagePrompt, onReversePrompt }).filter((tool) => !isPanorama || tool.id !== "replace");
+    const imageTools = buildImageToolbarTools(node, { onUpload, onToggleFreeResize, onMaskEdit, onCrop, onSplit, onUpscale, onSuperResolve, onAngle, onViewImage, onCopyPrompt: copyImagePrompt, onReversePrompt }).filter(
+        (tool) => !isPanorama || tool.id !== "replace",
+    );
 
     function openImageToolSettings() {
         onKeep(node!.id);
@@ -163,20 +174,28 @@ export function CanvasNodeHoverToolbar({
         ...(hasImage || hasVideo || isText ? [{ id: "saveAsset", title: "加入我的素材", label: "存素材", icon: <FolderPlus className="size-4" />, onClick: () => onSaveAsset(node) }] : []),
         ...((hasVideo || hasAudio) && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadMediaToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadMediaToCloud(node) }] : []),
         ...(hasImage && !node.metadata?.storageKey?.startsWith("server:") ? [{ id: "uploadImageToCloud", title: "上传至云存储", label: "上传至云存储", icon: <Upload className="size-4" />, onClick: () => onUploadImageToCloud(node) }] : []),
-        ...(hasVideo ? [{
-            id: "extractAudio",
-            title: "分离音频",
-            label: "分离音频",
-            icon: <Music2 className="size-4" />,
-            onClick: () => onExtractAudio(node),
-        }] : []),
-        ...(hasAudio ? [{
-            id: "trimAudio",
-            title: "截取音频",
-            label: "截取",
-            icon: <Scissors className="size-4" />,
-            onClick: () => onTrimAudio(node),
-        }] : []),
+        ...(hasVideo
+            ? [
+                  {
+                      id: "extractAudio",
+                      title: "分离音频",
+                      label: "分离音频",
+                      icon: <Music2 className="size-4" />,
+                      onClick: () => onExtractAudio(node),
+                  },
+              ]
+            : []),
+        ...(hasAudio
+            ? [
+                  {
+                      id: "trimAudio",
+                      title: "截取音频",
+                      label: "截取",
+                      icon: <Scissors className="size-4" />,
+                      onClick: () => onTrimAudio(node),
+                  },
+              ]
+            : []),
         ...(hasImage || hasVideo || hasAudio ? [{ id: "download", title: hasAudio ? "下载音频" : hasVideo ? "下载视频" : "下载图片", label: "下载", icon: <Download className="size-4" />, onClick: () => onDownload(node) }] : []),
         ...(canOpenDialog ? [{ id: "edit", title: "编辑", label: "编辑", icon: <MessageSquare className="size-4" />, onClick: () => onToggleDialog(node) }] : []),
         ...(isText ? [{ id: "generateImage", title: "用文本生图", label: "生图", icon: <ImageIcon className="size-4" />, onClick: () => onGenerateImage(node) }] : []),
@@ -188,7 +207,8 @@ export function CanvasNodeHoverToolbar({
         ...(isAudio ? [{ id: "uploadAudio", title: hasAudio ? "替换音频" : "上传音频", label: hasAudio ? "替换音频" : "上传音频", icon: <Music2 className="size-4" />, onClick: () => onUpload(node) }] : []),
         ...(hasImage ? imageTools.map((tool) => ({ id: tool.id, title: tool.title, label: tool.label, icon: tool.icon, active: tool.active, onClick: tool.onClick })) : []),
     ];
-    const toolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
+    const availableToolbarTools = hasImage ? [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id === "uploadImageToCloud" || quickImageToolIdSet.has(tool.id as ImageQuickToolId)) : [...baseToolbarTools, ...nodeToolbarTools];
+    const toolbarTools = visibleToolIds ? availableToolbarTools.filter((tool) => visibleToolIds.includes(tool.id)) : availableToolbarTools;
     const selectableImageToolbarTools = [...baseToolbarTools, ...nodeToolbarTools].filter((tool) => tool.id !== "retry" && tool.id !== "uploadImageToCloud") as ImageToolbarSettingsTool[];
 
     const closeImageToolSettings = () => {
@@ -206,6 +226,7 @@ export function CanvasNodeHoverToolbar({
     };
 
     const saveImageToolSettings = () => {
+        if (!persistToolPreferences) return;
         const config = {
             ids: isPanorama ? draftImageToolIds.filter((id) => id !== "replace") : draftImageToolIds,
             showLabels: draftShowImageToolLabels,
@@ -233,11 +254,13 @@ export function CanvasNodeHoverToolbar({
                 onPointerDown={(event) => event.stopPropagation()}
             >
                 {toolbarTools.map((tool) => (
-                    <ToolbarAction key={tool.id} {...tool} showLabel={showImageToolLabels} />
+                    <ToolbarAction key={tool.id} {...tool} disabled={disabled} showLabel={showImageToolLabels} />
                 ))}
-                {hasImage ? <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} /> : null}
+                {hasImage && persistToolPreferences ? (
+                    <ToolbarAction id="more" title="配置快捷工具" label="更多" icon={<Ellipsis className="size-4" />} active={imageToolSettingsOpen} onClick={openImageToolSettings} showLabel={showImageToolLabels} />
+                ) : null}
             </div>
-            {hasImage ? (
+            {hasImage && persistToolPreferences ? (
                 <ImageToolSettingsModal
                     open={imageToolSettingsOpen}
                     tools={selectableImageToolbarTools}
@@ -300,12 +323,33 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
                         <div className="thin-scrollbar h-full space-y-3 overflow-auto pr-1">
                             <InfoRow label="ID" value={node.id} />
                             <InfoRow label="名称" value={node.title || "未命名节点"} />
-                            <InfoRow label="类型" value={node.type === CanvasNodeType.Text ? "文本" : node.type === CanvasNodeType.Image ? "图片" : node.type === CanvasNodeType.Panorama ? "全景图" : node.type === CanvasNodeType.Video ? "视频" : node.type === CanvasNodeType.Audio ? "音频" : node.type === CanvasNodeType.Director ? "导演台" : node.type === CanvasNodeType.Group ? "组" : "生成配置"} />
+                            <InfoRow
+                                label="类型"
+                                value={
+                                    node.type === CanvasNodeType.Text
+                                        ? "文本"
+                                        : node.type === CanvasNodeType.Image
+                                          ? "图片"
+                                          : node.type === CanvasNodeType.Panorama
+                                            ? "全景图"
+                                            : node.type === CanvasNodeType.Video
+                                              ? "视频"
+                                              : node.type === CanvasNodeType.Audio
+                                                ? "音频"
+                                                : node.type === CanvasNodeType.Director
+                                                  ? "导演台"
+                                                  : node.type === CanvasNodeType.Group
+                                                    ? "组"
+                                                    : "生成配置"
+                                }
+                            />
                             <InfoRow label="尺寸" value={`${Math.round(node.width)} x ${Math.round(node.height)}`} />
                             <InfoRow label="位置" value={`${Math.round(node.position.x)}, ${Math.round(node.position.y)}`} />
                             <InfoRow label="状态" value={node.metadata?.status || "idle"} />
                             {batchCount > 1 ? <InfoRow label="图片组" value={`${batchCount} 张`} /> : null}
-                            {(isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt) ? <InfoRow label="提示词" value={isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt} /> : null}
+                            {(isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt) ? (
+                                <InfoRow label="提示词" value={isPanoramaNodeType(node.type) ? node.metadata?.panoramaSourcePrompt : node.metadata?.prompt} />
+                            ) : null}
                             {imageBytes ? <InfoRow label="图片大小" value={formatBytes(imageBytes)} /> : null}
                             {node.metadata?.errorDetails ? (
                                 <div className="rounded-lg border p-3 text-red-400" style={{ borderColor: theme.node.stroke }}>
@@ -324,11 +368,11 @@ export function CanvasNodeInfoModal({ node, open, onClose }: { node: CanvasNodeD
     );
 }
 
-function ToolbarAction({ title, label, icon, onClick, showLabel, active = false, danger = false }: ToolbarTool & { showLabel: boolean }) {
+function ToolbarAction({ title, label, icon, onClick, showLabel, active = false, danger = false, disabled = false }: ToolbarTool & { showLabel: boolean; disabled?: boolean }) {
     const hasText = showLabel && Boolean(label);
     return (
         <Tooltip title={title} placement="top" mouseEnterDelay={0.2} color="#ffffff">
-            <button type="button" className={`group relative flex h-12 items-center whitespace-nowrap ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
+            <button type="button" disabled={disabled} className={`group relative flex h-12 items-center whitespace-nowrap ${danger ? "text-[#ef4444]" : ""}`} onClick={onClick} aria-label={title}>
                 <span className={`flex h-8 items-center ${hasText ? "gap-2 px-2.5" : "justify-center px-2"} rounded-lg transition group-hover:bg-white/10 ${active ? "bg-white/10" : ""}`}>
                     {icon}
                     {hasText ? <span>{label}</span> : null}

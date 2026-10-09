@@ -79,7 +79,12 @@ export function ProjectHeader({ project }: { project?: ProductionProject }) {
                             { path: `${base}/assets`, name: "资产创意", icon: "assets" },
                         ] as const
                     ).map((item) => (
-                        <Link key={item.path} href={item.path} aria-current={pathname === item.path ? "page" : undefined} className={`${styles.tab} ${pathname === item.path ? styles.tabActive : ""}`}>
+                        <Link
+                            key={item.path}
+                            href={item.path}
+                            aria-current={pathname === item.path || (item.icon === "canvas" && pathname.startsWith(`${item.path}/`)) ? "page" : undefined}
+                            className={`${styles.tab} ${pathname === item.path || (item.icon === "canvas" && pathname.startsWith(`${item.path}/`)) ? styles.tabActive : ""}`}
+                        >
                             <ProjectIcon name={item.icon} />
                             {item.name}
                         </Link>

@@ -3,6 +3,7 @@
 import { useParams } from "next/navigation";
 import { Alert, Button, Spin } from "antd";
 import { ProjectIcon } from "@/components/ui/project-icon";
+import { DocumentList } from "@/components/production-canvas/document-list";
 import type { WorkspaceKind } from "@/services/api/production-projects";
 import { ProjectHeader } from "../../project-header";
 import { useProject } from "../../use-project";
@@ -60,12 +61,16 @@ export default function ProjectWorkspacePage() {
                         </p>
                     </div>
                 </div>
-                <section className={styles.workspaceEmpty}>
-                    <div className={styles.empty}>
-                        <h2>{canvas ? "暂无画布文档" : "暂无创意资产"}</h2>
-                        <p>{canvas ? "项目工作台已建立。画布文档编辑将在后续模块接入。" : "项目工作台已建立。图片创意与资产整理将在后续模块接入。"}</p>
-                    </div>
-                </section>
+                {canvas ? (
+                    <DocumentList key={project.id} projectId={project.id} />
+                ) : (
+                    <section className={styles.workspaceEmpty}>
+                        <div className={styles.empty}>
+                            <h2>{canvas ? "暂无画布文档" : "暂无创意资产"}</h2>
+                            <p>{canvas ? "项目工作台已建立。画布文档编辑将在后续模块接入。" : "项目工作台已建立。图片创意与资产整理将在后续模块接入。"}</p>
+                        </div>
+                    </section>
+                )}
             </main>
         </>
     );

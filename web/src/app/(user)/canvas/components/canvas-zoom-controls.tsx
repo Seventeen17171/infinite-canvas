@@ -7,6 +7,8 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
 
 type CanvasZoomControlsProps = {
+    disabled?: boolean;
+    shortcuts?: { label: ReactNode; value: string }[];
     scale: number;
     onScaleChange: (scale: number) => void;
     onReset: () => void;
@@ -14,7 +16,7 @@ type CanvasZoomControlsProps = {
     onToggleMiniMap: () => void;
 };
 
-export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap }: CanvasZoomControlsProps) {
+export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpen, onToggleMiniMap, disabled = false, shortcuts }: CanvasZoomControlsProps) {
     const [shortcutsOpen, setShortcutsOpen] = useState(false);
     const colorTheme = useThemeStore((state) => state.theme);
     const theme = canvasThemes[colorTheme];
@@ -22,11 +24,12 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
     const activeStyle = { background: theme.toolbar.activeBg, color: theme.toolbar.activeText };
 
     return (
-        <div className="absolute bottom-5 left-5 z-50" onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
+        <div className="absolute bottom-5 left-5 z-50" data-canvas-no-zoom onMouseDown={(event) => event.stopPropagation()} onPointerDown={(event) => event.stopPropagation()}>
             <div className="flex h-14 items-center gap-1 rounded-xl border px-2 shadow-lg backdrop-blur" style={dockStyle}>
                 <Tooltip title={isMiniMapOpen ? "关闭小地图" : "打开小地图"}>
                     <Button
                         type="text"
+                        disabled={disabled}
                         className="!h-8 !w-8 !min-w-8 !p-0"
                         style={isMiniMapOpen ? activeStyle : { color: theme.toolbar.item }}
                         icon={<Compass className="size-4" />}
@@ -35,11 +38,12 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
                     />
                 </Tooltip>
                 <Tooltip title="重置视图">
-                    <Button type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onReset} aria-label="重置视图" />
+                    <Button disabled={disabled} type="text" className="!h-8 !w-8 !min-w-8 !p-0" style={{ color: theme.toolbar.item }} icon={<Focus className="size-4" />} onClick={onReset} aria-label="重置视图" />
                 </Tooltip>
                 <Tooltip title="放大/缩小画布">
                     <input
                         type="range"
+                        disabled={disabled}
                         min="5"
                         max="500"
                         step="1"
@@ -59,13 +63,19 @@ export function CanvasZoomControls({ scale, onScaleChange, onReset, isMiniMapOpe
             </div>
             <Modal title="快捷键" open={shortcutsOpen} onCancel={() => setShortcutsOpen(false)} footer={null} centered>
                 <div className="space-y-3 border-t pt-4 text-sm" style={{ borderColor: theme.node.stroke }}>
-                    <Shortcut label="Space + 拖动" value="临时反转选择/移动工具" />
-                    <Shortcut label="滚轮" value="缩放画布" />
-                    <Shortcut label="拖动" value="使用当前工具操作画布" />
-                    <Shortcut label="Shift / Ctrl / Cmd + 点击" value="追加选择节点" />
-                    <Shortcut label="Ctrl / Cmd + G" value="创建组" />
-                    <Shortcut label="Ctrl / Cmd + C / V" value="复制 / 粘贴节点" />
-                    <Shortcut label="Delete / Backspace" value="删除选中" />
+                    {shortcuts ? (
+                        shortcuts.map((shortcut, index) => <Shortcut key={index} {...shortcut} />)
+                    ) : (
+                        <>
+                            <Shortcut label="Space + 拖动" value="临时反转选择/移动工具" />
+                            <Shortcut label="滚轮" value="缩放画布" />
+                            <Shortcut label="拖动" value="使用当前工具操作画布" />
+                            <Shortcut label="Shift / Ctrl / Cmd + 点击" value="追加选择节点" />
+                            <Shortcut label="Ctrl / Cmd + G" value="创建组" />
+                            <Shortcut label="Ctrl / Cmd + C / V" value="复制 / 粘贴节点" />
+                            <Shortcut label="Delete / Backspace" value="删除选中" />
+                        </>
+                    )}
                 </div>
             </Modal>
         </div>

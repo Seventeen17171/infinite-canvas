@@ -117,8 +117,8 @@ func productionProjectView(tx *repository.ProductionTx, projects []model.Product
 	return result, nil
 }
 
-func productionVisibleProject(tx *repository.ProductionTx, id, actorID string) (model.ProductionProject, error) {
-	project, found, err := tx.Project(id, actorID)
+func productionVisibleProject(tx *repository.ProductionTx, id, actorID string, lock ...bool) (model.ProductionProject, error) {
+	project, found, err := tx.Project(id, actorID, lock...)
 	if err != nil {
 		return project, err
 	}
@@ -260,7 +260,7 @@ func AssignProductionProject(ctx context.Context, id string, request AssignProdu
 		if err != nil {
 			return err
 		}
-		project, err := productionVisibleProject(tx, id, actor.ID)
+		project, err := productionVisibleProject(tx, id, actor.ID, true)
 		if err != nil {
 			return err
 		}

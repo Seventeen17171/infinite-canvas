@@ -34,6 +34,8 @@ description: 当前后端主要数据表与字段说明
 - `canvas_projects`
 - `production_projects`
 - `production_workspaces`
+- `production_canvas_documents`
+- `canvas_document_requests`
 - `project_requests`
 - `user_configs`
 - `storage_objects`
@@ -86,7 +88,7 @@ description: 当前后端主要数据表与字段说明
 
 ### production_workspaces
 
-项目内两个工作台的身份元数据，本阶段不保存画布节点、图片历史或资产内容。
+项目内两个工作台的身份元数据；画布正文保存在独立 `production_canvas_documents`，图片历史与资产归属另行开发。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -106,6 +108,38 @@ description: 当前后端主要数据表与字段说明
 | `project_id` | string | 已创建项目 ID |
 
 同键同内容返回原项目，同键不同内容返回冲突。SQLite 使用单连接、WAL 和 5000 ms 忙等待，限定本机短元数据事务；PostgreSQL/MySQL 的账号行按 ID 排序加锁，不把该配置当作生产多进程或 AI 容量验证。登录只定向更新登录/资料字段，原管理员积分调整只定向更新余额/时间，避免旧快照回写项目权限；积分日志规则仍沿用原实现，本阶段未实现新账本。
+
+### production_canvas_documents
+
+项目内独立画布文档，不复用或迁移个人 `canvas_projects`。列表只返回元数据；打开接口返回完整正文。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 服务端生成的文档主键 |
+| `project_id` / `workspace_id` | string | 服务端根据授权项目及其 `canvas` 工作台派生，与更新时间组成查询索引 |
+| `title` | string | 去首尾空白后 1–80 字，无控制字符 |
+| `content` | text | schemaVersion=1 的 JSON 快照，只包含文本/组节点、连线、视口和背景 |
+| `revision` | int64 | 初始 1；按文档 ID、项目、工作台、预期版本条件保存后递增 |
+| `created_by` / `updated_by` | string | 实际创建/最后保存账号，服务端写入 |
+| `created_at` / `updated_at` | string | 服务端 UTC 时间 |
+
+四接口位于 `/api/v1/production/projects/:projectId/workspaces/:kind/documents`，只支持 `kind=canvas`：GET 列表、POST 新建，`/:documentId` 的 GET 打开与 PUT 保存。每次都在同一事务重查有效账号、项目创建者/当前负责人身份、空间和文档复合归属；管理员不默认获得项目访问。写入与项目改派采用相同项目行锁，文档 CAS 不匹配返回 409，禁止静默覆盖。SQLite 的短事务仍使用已有单连接；并发验证不代表 PostgreSQL/MySQL 生产容量。
+
+请求最大 2 MiB，最多 300 节点、600 连线，拒绝未知字段。节点 `type=text|group`，metadata 仅 `content/groupId/fontSize`；坐标在 ±1,000,000、宽高 16–10,000、字号 8–128、缩放 0.05–10，背景为 `dots|lines|blank`。节点/连线 ID 分别唯一；端点必须存在且不能自连，组引用必须指向有效组且不能循环。正文不支持媒体/模型/文件或工具执行字段。
+
+### canvas_document_requests
+
+文档创建及保存的幂等回执，与文档写入同事务提交；失败回滚不会留下成功回执。不存每次正文快照或实现历史版本系统。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `actor_id` / `request_id` | string | 当前账号与规范化 UUID 组成联合主键 |
+| `payload_hash` | string | 操作、项目、空间、文档、标题、预期版本及规范化正文的 SHA-256 摘要 |
+| `operation` | string | `create` 或 `save` |
+| `project_id` / `workspace_id` / `document_id` | string | 已授权且已提交的对象归属 |
+| `revision` / `updated_at` | int64 / string | 此次提交版本及时间 |
+
+幂等重放前仍重新验证当前授权。同键不同对象、操作或内容返回 409；相同创建请求返回同一文档当前完整版本，相同保存请求返回原提交的 `{id,projectId,workspaceId,revision,updatedAt,requestId}`，不会重新写入或回传覆盖客户端正文。客户端不得用迟到回执降低本地版本；改派或禁用后原账号不能用旧请求编号绕过撤权。
 
 ### user_configs
 
@@ -403,7 +437,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `availableModels` | string[] | 系统可用模型列表 |
-| `availableWorkflows` | string[] | 对用户开放的系统工作流标识列表；空列表表示开放全部已启用工作流，非空时只开放勾选项 |
+| `availableWorkflows` | string[] | 对用户明确开放的系统工作流标识列表；空列表表示不开放工作流 |
 | `modelCosts` | object[] | 模型算力点配置 |
 | `defaultModel` | string | 默认模型 |
 | `defaultImageModel` | string | 默认图片模型 |
@@ -468,7 +502,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 
 后端请求模型时，先按模型名筛选启用且包含该模型的渠道，再按 `weight` 加权随机选择一个渠道。
 
-RunningHub/ComfyUI 不加入上述普通模型筛选：系统工作流公开列表为空时下发全部已启用条目，非空时只下发已启用且已勾选条目的名称、ID 和用途；不会公开密钥、Bridge Token、字段映射或完整工作流 JSON。历史 `user_configs.model_config.workflowChannels` 不再解析或执行；用户只能提交 `scope: "system"` 的后台工作流引用。
+RunningHub/ComfyUI 不加入上述普通模型筛选：只下发已启用且已明确勾选的工作流名称、ID 和用途，公开列表为空时不开放任何工作流；不会公开密钥、Bridge Token、字段映射或完整工作流 JSON。历史 `user_configs.model_config.workflowChannels` 不再解析或执行；用户只能提交 `scope: "system"` 的后台工作流引用。
 
 ### credit_logs
 

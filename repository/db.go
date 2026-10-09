@@ -98,6 +98,8 @@ func DB() (*gorm.DB, error) {
 			&model.CanvasProject{},
 			&model.ProductionProject{},
 			&model.ProductionWorkspace{},
+			&model.ProductionCanvasDocument{},
+			&model.CanvasDocumentRequest{},
 			&model.ProjectRequest{},
 			&model.ComfyBridge{},
 			&model.ComfyBridgeRequest{},

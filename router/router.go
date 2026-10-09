@@ -45,6 +45,18 @@ func New() *gin.Engine {
 		handler.GetProductionWorkspace(c.Writer, c.Request, c.Param("id"), c.Param("kind"))
 	})
 	production.POST("/projects/:id/assignment", func(c *gin.Context) { handler.AssignProductionProject(c.Writer, c.Request, c.Param("id")) })
+	production.GET("/projects/:id/workspaces/:kind/documents", func(c *gin.Context) {
+		handler.ProductionCanvasDocuments(c.Writer, c.Request, c.Param("id"), c.Param("kind"))
+	})
+	production.POST("/projects/:id/workspaces/:kind/documents", func(c *gin.Context) {
+		handler.CreateProductionCanvasDocument(c.Writer, c.Request, c.Param("id"), c.Param("kind"))
+	})
+	production.GET("/projects/:id/workspaces/:kind/documents/:documentId", func(c *gin.Context) {
+		handler.GetProductionCanvasDocument(c.Writer, c.Request, c.Param("id"), c.Param("kind"), c.Param("documentId"))
+	})
+	production.PUT("/projects/:id/workspaces/:kind/documents/:documentId", func(c *gin.Context) {
+		handler.SaveProductionCanvasDocument(c.Writer, c.Request, c.Param("id"), c.Param("kind"), c.Param("documentId"))
+	})
 	v1.POST("/model-channels/autodl/workflows", gin.WrapF(handler.UserAutoDLWorkflows))
 	v1.POST("/images/generations", gin.WrapF(handler.AIImagesGenerations))
 	v1.POST("/images/edits", gin.WrapF(handler.AIImagesEdits))

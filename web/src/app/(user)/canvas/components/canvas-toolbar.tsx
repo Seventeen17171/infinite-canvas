@@ -5,9 +5,16 @@ import { CircleDot, Eraser, FolderOpen, Globe2, Grid2x2, Hand, Image as ImageIco
 
 import { canvasThemes, type CanvasBackgroundMode, type CanvasColorTheme, type CanvasTheme } from "@/lib/canvas-theme";
 import { useThemeStore } from "@/stores/use-theme-store";
+import { ProjectIcon } from "@/components/ui/project-icon";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 
+export type CanvasToolbarAction = "tool" | "undo" | "redo" | "text" | "group" | "image" | "video" | "audio" | "panorama" | "director" | "config" | "upload" | "library" | "assets" | "style" | "delete" | "clear";
+
 export function CanvasToolbar({
+    visibleActions,
+    disabled = false,
+    showImageInfoControl = true,
+    onAddGroup,
     selectedCount,
     canvasTool,
     canUndo,
@@ -32,30 +39,35 @@ export function CanvasToolbar({
     onOpenAssetLibrary,
     onOpenMyAssets,
 }: {
+    visibleActions?: readonly CanvasToolbarAction[];
+    disabled?: boolean;
+    showImageInfoControl?: boolean;
+    onAddGroup?: () => void;
     selectedCount: number;
     canvasTool: "select" | "pan";
     canUndo: boolean;
     canRedo: boolean;
     backgroundMode: CanvasBackgroundMode;
     showImageInfo: boolean;
-    onAddImage: () => void;
-    onAddVideo: () => void;
-    onAddAudio: () => void;
+    onAddImage?: () => void;
+    onAddVideo?: () => void;
+    onAddAudio?: () => void;
     onAddText: () => void;
-    onAddPanorama: () => void;
-    onAddDirector: () => void;
-    onAddConfig: () => void;
+    onAddPanorama?: () => void;
+    onAddDirector?: () => void;
+    onAddConfig?: () => void;
     onUndo: () => void;
     onRedo: () => void;
-    onUpload: () => void;
+    onUpload?: () => void;
     onDelete: () => void;
     onClear: () => void;
     onCanvasToolChange: (tool: "select" | "pan") => void;
     onBackgroundModeChange: (mode: CanvasBackgroundMode) => void;
-    onShowImageInfoChange: (show: boolean) => void;
-    onOpenAssetLibrary: () => void;
-    onOpenMyAssets: () => void;
+    onShowImageInfoChange?: (show: boolean) => void;
+    onOpenAssetLibrary?: () => void;
+    onOpenMyAssets?: () => void;
 }) {
+    const visible = (action: CanvasToolbarAction) => !visibleActions || visibleActions.includes(action);
     const wrapRef = useRef<HTMLDivElement>(null);
     const colorTheme = useThemeStore((state) => state.theme);
     const setTheme = useThemeStore((state) => state.setTheme);
@@ -70,82 +82,130 @@ export function CanvasToolbar({
     const tip = hovered ? toolLabel(hovered) : "";
 
     return (
-        <div className="pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }}>
+        <div className="pointer-events-none absolute bottom-5 z-50 flex justify-center" style={{ left: 300, right: 16 }} data-canvas-no-zoom role="toolbar" aria-label="画布工具">
             {tip ? <DockTip label={tip} x={tipX} theme={theme} /> : null}
             <div ref={wrapRef} className="thin-scrollbar pointer-events-auto flex h-14 max-w-full items-center gap-1 overflow-x-auto rounded-xl border px-2 shadow-lg backdrop-blur [&>*]:shrink-0" style={dockStyle}>
-                <ToolbarButton id={`tool-${canvasTool}`} label={canvasTool === "select" ? "选择" : "移动"} active hovered={hovered} activeStyle={activeStyle} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}>
-                    {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
-                </ToolbarButton>
-                <ToolbarButton id="tool-undo" label="撤销" disabled={!canUndo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUndo}>
-                    <Undo2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-redo" label="重做" disabled={!canRedo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onRedo}>
-                    <Redo2 className="size-4.5" />
-                </ToolbarButton>
+                {visible("tool") ? (
+                    <ToolbarButton
+                        disabled={disabled}
+                        id={`tool-${canvasTool}`}
+                        label={canvasTool === "select" ? "选择" : "移动"}
+                        active
+                        hovered={hovered}
+                        activeStyle={activeStyle}
+                        hoverStyle={hoverStyle}
+                        wrapRef={wrapRef}
+                        onTipX={setTipX}
+                        onHover={setHovered}
+                        onClick={() => onCanvasToolChange(canvasTool === "select" ? "pan" : "select")}
+                    >
+                        {canvasTool === "select" ? <MousePointer2 className="size-4.5" /> : <Hand className="size-4.5" />}
+                    </ToolbarButton>
+                ) : null}
+                {visible("undo") ? (
+                    <ToolbarButton id="tool-undo" label="撤销" disabled={disabled || !canUndo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUndo}>
+                        <Undo2 className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("redo") ? (
+                    <ToolbarButton id="tool-redo" label="重做" disabled={disabled || !canRedo} hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onRedo}>
+                        <Redo2 className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
                 <Divider theme={theme} />
-                <ToolbarButton id="tool-text" label="文本" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddText}>
-                    <Type className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-image" label="图片" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddImage}>
-                    <ImageIcon className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-video" label="视频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddVideo}>
-                    <Video className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-audio" label="音频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
-                    <Music2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-panorama" label="全景图" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddPanorama}>
-                    <Globe2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-director" label="导演台" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddDirector}>
-                    <Layers3 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-config" label="生成配置" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddConfig}>
-                    <Settings2 className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-upload" label="上传素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
-                    <Upload className="size-4.5" />
-                </ToolbarButton>
-                <Divider theme={theme} />
-                <ToolbarButton id="tool-library" label="素材库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
-                    <Library className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton id="tool-assets" label="我的素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenMyAssets}>
-                    <FolderOpen className="size-4.5" />
-                </ToolbarButton>
-                <ToolbarButton
-                    id="tool-style"
-                    label="画布外观"
-                    active={appearanceOpen}
-                    hovered={hovered}
-                    activeStyle={activeStyle}
-                    hoverStyle={hoverStyle}
-                    wrapRef={wrapRef}
-                    onTipX={setTipX}
-                    onHover={setHovered}
-                    onClick={(event) => {
-                        setPanelX(getTipX(wrapRef.current, event.currentTarget));
-                        setAppearanceOpen((value) => !value);
-                    }}
-                >
-                    <Palette className="size-4.5" />
-                </ToolbarButton>
-                {selectedCount ? (
+                {visible("text") ? (
+                    <ToolbarButton disabled={disabled} id="tool-text" label="文本" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddText}>
+                        <Type className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {onAddGroup && visible("group") ? (
+                    <ToolbarButton disabled={disabled} id="tool-group" label="分组" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddGroup}>
+                        <ProjectIcon name="group" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("image") ? (
+                    <ToolbarButton disabled={disabled} id="tool-image" label="图片" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddImage}>
+                        <ImageIcon className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("video") ? (
+                    <ToolbarButton disabled={disabled} id="tool-video" label="视频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddVideo}>
+                        <Video className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("audio") ? (
+                    <ToolbarButton disabled={disabled} id="tool-audio" label="音频" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddAudio}>
+                        <Music2 className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("panorama") ? (
+                    <ToolbarButton disabled={disabled} id="tool-panorama" label="全景图" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddPanorama}>
+                        <Globe2 className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("director") ? (
+                    <ToolbarButton disabled={disabled} id="tool-director" label="导演台" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddDirector}>
+                        <Layers3 className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("config") ? (
+                    <ToolbarButton disabled={disabled} id="tool-config" label="生成配置" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onAddConfig}>
+                        <Settings2 className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("upload") ? (
+                    <ToolbarButton disabled={disabled} id="tool-upload" label="上传素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
+                        <Upload className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("library") || visible("assets") ? <Divider theme={theme} /> : null}
+                {visible("library") ? (
+                    <ToolbarButton disabled={disabled} id="tool-library" label="素材库" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenAssetLibrary}>
+                        <Library className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("assets") ? (
+                    <ToolbarButton disabled={disabled} id="tool-assets" label="我的素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenMyAssets}>
+                        <FolderOpen className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {visible("style") ? (
+                    <ToolbarButton
+                        disabled={disabled}
+                        id="tool-style"
+                        label="画布外观"
+                        active={appearanceOpen}
+                        hovered={hovered}
+                        activeStyle={activeStyle}
+                        hoverStyle={hoverStyle}
+                        wrapRef={wrapRef}
+                        onTipX={setTipX}
+                        onHover={setHovered}
+                        onClick={(event) => {
+                            setPanelX(getTipX(wrapRef.current, event.currentTarget));
+                            setAppearanceOpen((value) => !value);
+                        }}
+                    >
+                        <Palette className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {selectedCount && visible("delete") ? (
                     <>
                         <Divider theme={theme} />
-                        <ToolbarButton id="tool-delete" label="删除选中" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onDelete} danger>
+                        <ToolbarButton disabled={disabled} id="tool-delete" label="删除选中" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onDelete} danger>
                             <Trash2 className="size-4.5" />
                         </ToolbarButton>
                     </>
                 ) : null}
-                <Divider theme={theme} />
-                <ToolbarButton id="tool-clear" label="清空画布" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onClear} danger>
-                    <Eraser className="size-4.5" />
-                </ToolbarButton>
+                {visible("clear") ? <Divider theme={theme} /> : null}
+                {visible("clear") ? (
+                    <ToolbarButton disabled={disabled} id="tool-clear" label="清空画布" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onClear} danger>
+                        <Eraser className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
             </div>
 
-            {appearanceOpen ? (
+            {appearanceOpen && !disabled ? (
                 <div
                     className="pointer-events-auto absolute bottom-[72px] z-30 w-[248px] -translate-x-1/2 rounded-xl border p-2.5 shadow-xl backdrop-blur"
                     style={{ left: panelX || "50%", background: theme.toolbar.panel, borderColor: theme.toolbar.border, color: theme.toolbar.item }}
@@ -195,13 +255,15 @@ export function CanvasToolbar({
                             },
                         ]}
                     />
-                    <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
-                        <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
-                            <Info className="size-3.5" />
-                            图片信息
-                        </span>
-                        <Switch size="small" checked={showImageInfo} onChange={onShowImageInfoChange} />
-                    </div>
+                    {showImageInfoControl ? (
+                        <div className="mt-3 flex items-center justify-between gap-3 rounded-lg px-1.5 py-1">
+                            <span className="inline-flex min-w-0 items-center gap-1.5 text-[11px] font-medium opacity-65">
+                                <Info className="size-3.5" />
+                                图片信息
+                            </span>
+                            <Switch size="small" checked={showImageInfo} onChange={onShowImageInfoChange} />
+                        </div>
+                    ) : null}
                 </div>
             ) : null}
         </div>
@@ -295,6 +357,7 @@ function toolLabel(id: string) {
     if (id === "tool-undo") return "撤销";
     if (id === "tool-redo") return "重做";
     if (id === "tool-text") return "文本";
+    if (id === "tool-group") return "分组";
     if (id === "tool-image") return "图片";
     if (id === "tool-video") return "视频";
     if (id === "tool-audio") return "音频";

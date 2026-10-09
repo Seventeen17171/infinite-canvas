@@ -52,7 +52,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         const handleKeyDown = (event: KeyboardEvent) => {
             if (event.code !== "Space") return;
             const target = event.target instanceof Element ? event.target : null;
-            if (event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']")) return;
+            if (target?.closest("input,textarea,select,button,a[href],[role='button'],[contenteditable='true']")) return;
             event.preventDefault();
             setIsSpacePressed(true);
         };
@@ -60,7 +60,7 @@ export function InfiniteCanvas({ containerRef, viewport, tool, backgroundMode = 
         const handleKeyUp = (event: KeyboardEvent) => {
             if (event.code === "Space") {
                 const target = event.target instanceof Element ? event.target : null;
-                if (!(event.target instanceof HTMLInputElement || event.target instanceof HTMLTextAreaElement || event.target instanceof HTMLSelectElement || target?.closest("[contenteditable='true']"))) event.preventDefault();
+                if (!target?.closest("input,textarea,select,button,a[href],[role='button'],[contenteditable='true']")) event.preventDefault();
                 setIsSpacePressed(false);
             }
         };
