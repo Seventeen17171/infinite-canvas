@@ -43,9 +43,6 @@ func prepareTokenDanceRequest(input aiProtocolRequest) (aiProtocolRequest, bool,
 
 	switch protocol {
 	case "openai:image-generations":
-		if input.mode == aiProtocolDirectRequest && input.endpoint == "/images/edits" {
-			input.formData = true
-		}
 		return input, true, nil
 	case "ark:image-generations":
 		input.body, err = json.Marshal(tokenDanceArkImageBody(payload, input.modelName))

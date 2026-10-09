@@ -24,13 +24,14 @@ func StorageConfig(w http.ResponseWriter, r *http.Request) {
 // SaveUserStorageProvider 保存用户配置的存储提供商。
 func SaveUserStorageProvider(w http.ResponseWriter, r *http.Request) {
 	var request struct {
-		Provider service.UserStorageProviders `json:"provider"`
+		Provider    service.UserStorageProviders `json:"provider"`
+		StorageSync *service.UserStorageSync     `json:"storageSync,omitempty"`
 	}
 	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
 		Fail(w, "配置内容格式错误")
 		return
 	}
-	config, err := service.SaveCurrentUserStorageProvider(r.Context(), request.Provider)
+	config, err := service.SaveCurrentUserStorageProvider(r.Context(), request.Provider, request.StorageSync)
 	if err != nil {
 		FailError(w, err)
 		return

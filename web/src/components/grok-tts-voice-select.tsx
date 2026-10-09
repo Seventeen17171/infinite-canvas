@@ -4,7 +4,7 @@ import { Select } from "antd";
 import { useEffect, useRef, useState } from "react";
 
 import { fetchGrokTtsVoices } from "@/services/api/audio";
-import { channelIdForActiveModel, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { channelIdForActiveModel, type AiConfig } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { GrokTtsVoice } from "@/lib/grok-tts";
 
@@ -27,8 +27,7 @@ export function GrokTtsVoiceSelect({ config, model, value, onChange, enabled = t
 
     const requestConfig = { ...config, model, audioModel: model };
     const channelId = channelIdForActiveModel(requestConfig);
-    const localChannel = localChannelForActiveModel(requestConfig);
-    const requestKey = `${config.channelMode}|${channelId}|${model}|${localChannel?.baseUrl || config.baseUrl}|${token}`;
+    const requestKey = `${channelId}|${model}|${token}`;
 
     useEffect(() => {
         if (!enabled) return;

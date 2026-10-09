@@ -6,9 +6,9 @@ import (
 	"errors"
 	"strings"
 
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/google/uuid"
 )
 
 type CreativeWorkflowPayload struct {
@@ -26,15 +26,11 @@ type CreativeWorkflowPayload struct {
 }
 
 type WorkflowAgentDraftRequest struct {
-	Prompt      string   `json:"prompt"`
-	Scope       string   `json:"scope"`
-	Model       string   `json:"model"`
-	ChannelID   string   `json:"channelId"`
-	ChannelMode string   `json:"channelMode"`
-	Protocol    string   `json:"protocol"`
-	BaseURL     string   `json:"baseUrl"`
-	APIKey      string   `json:"apiKey"`
-	References  []string `json:"references"`
+	Prompt     string   `json:"prompt"`
+	Scope      string   `json:"scope"`
+	Model      string   `json:"model"`
+	ChannelID  string   `json:"channelId"`
+	References []string `json:"references"`
 }
 
 type WorkflowAgentDraftResponse struct {

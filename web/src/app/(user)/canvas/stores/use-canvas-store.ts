@@ -276,7 +276,7 @@ export const useCanvasStore = create<CanvasStore>()(
                     updatedAt: now,
                     nodes: source.nodes || [],
                     connections: source.connections || [],
-                    chatSessions: (source.chatSessions || []).map((session) => ({ ...session, codexThreadId: undefined, codexServiceId: undefined })),
+                    chatSessions: source.chatSessions || [],
                     activeChatId: source.activeChatId || null,
                     agentConfig: source.agentConfig || null,
                     autoTitlePending: false,

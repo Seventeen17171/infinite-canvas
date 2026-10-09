@@ -1,15 +1,12 @@
+import { fetchCurrentUser } from "@/services/api/auth";
+import { useUserStore } from "@/stores/use-user-store";
 import { tokenDanceAppUrl } from "@/lib/model-channel";
 
-export type TokenDanceOAuthContext =
-    | {
-        target: "local";
-        channelId: string;
-    }
-    | {
-        target: "admin";
-        draft: Record<string, unknown>;
-        editingChannelIndex: number | null;
-    };
+export type TokenDanceOAuthContext = {
+    target: "admin";
+    draft: Record<string, unknown>;
+    editingChannelIndex: number | null;
+};
 
 export type TokenDanceOAuthState = TokenDanceOAuthContext & {
     verifier: string;
@@ -17,6 +14,8 @@ export type TokenDanceOAuthState = TokenDanceOAuthContext & {
 };
 
 export async function startTokenDanceOAuth(context: TokenDanceOAuthContext) {
+    const token = useUserStore.getState().token;
+    if (!token || (await fetchCurrentUser(token)).role !== "admin" || useUserStore.getState().token !== token) throw new Error("仅管理员可以授权后台模型渠道");
     const flow = crypto.randomUUID();
     const verifier = `${crypto.randomUUID().replaceAll("-", "")}${crypto.randomUUID().replaceAll("-", "")}`;
     const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(verifier));

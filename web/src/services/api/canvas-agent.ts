@@ -1,12 +1,12 @@
+import { calibrateCanvasAgentTokenEstimate } from "@/app/(user)/canvas/agent/canvas-agent-memory";
+import type { CanvasAgentToolDefinition } from "@/app/(user)/canvas/agent/canvas-agent-tools";
+import type { CanvasAgentProtocolMessage, CanvasAgentToolCall, CanvasAgentToolMode } from "@/app/(user)/canvas/types";
+import { dataUrlToGeminiInlineData, geminiErrorMessage, isGeminiConfig } from "@/lib/gemini";
 import { mimoTextModels } from "@/lib/mimo-tts";
-import { dataUrlToGeminiInlineData, geminiActionUrl, geminiDirectHeaders, geminiErrorMessage, isGeminiConfig } from "@/lib/gemini";
 import { aiApiUrl, aiHeaders, ImageRequestError, isEventStreamResponse, readJsonServerSentEvents, refreshRemoteUser } from "@/services/api/image";
 import { imageToDataUrl } from "@/services/image-storage";
-import { channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { channelIdForActiveModel, channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
 import { tokenDanceRecoveryMessage } from "./protocols/tokendance";
-import type { CanvasAgentProtocolMessage, CanvasAgentToolCall, CanvasAgentToolMode } from "@/app/(user)/canvas/types";
-import type { CanvasAgentToolDefinition } from "@/app/(user)/canvas/agent/canvas-agent-tools";
-import { calibrateCanvasAgentTokenEstimate } from "@/app/(user)/canvas/agent/canvas-agent-memory";
 
 export type CanvasAgentModelTurn = {
     content: string;
@@ -148,24 +148,29 @@ export async function requestCanvasAgentTurn(input: RequestCanvasAgentTurnInput)
 
 export function canvasAgentSystemPrompt(config: AiConfig, prompt: string, jsonTools: CanvasAgentToolDefinition[] = [], nativeTools = false) {
     const configured = (config.systemPrompts.text || config.systemPrompt).trim();
-    if (nativeTools) prompt += "\n\n【原生工具回退信号】\n需要执行任何画布操作时必须返回原生工具调用；若本轮无法返回任何原生工具调用，只输出 " + CANVAS_AGENT_JSON_FALLBACK_SIGNAL + "，不得附加文字、Markdown 或声称已完成。仅咨询、解释、分析且无需执行画布操作时正常文字回答，禁止输出此信号。";
-    if (jsonTools.length) prompt += "\n\n【JSON 工具定义】\n当前画布执行器会解析并执行回复中的 actions。需要操作画布时必须直接返回合法的 actions JSON；接口没有原生 Tool Calling 不代表没有画布执行能力，不得因此拒绝执行或要求用户手动提交。所有工具参数都放在对应 action 的 arguments 中。\n" + JSON.stringify(jsonTools.map(({ function: tool }) => tool));
+    if (nativeTools)
+        prompt +=
+            "\n\n【原生工具回退信号】\n需要执行任何画布操作时必须返回原生工具调用；若本轮无法返回任何原生工具调用，只输出 " +
+            CANVAS_AGENT_JSON_FALLBACK_SIGNAL +
+            "，不得附加文字、Markdown 或声称已完成。仅咨询、解释、分析且无需执行画布操作时正常文字回答，禁止输出此信号。";
+    if (jsonTools.length)
+        prompt +=
+            "\n\n【JSON 工具定义】\n当前画布执行器会解析并执行回复中的 actions。需要操作画布时必须直接返回合法的 actions JSON；接口没有原生 Tool Calling 不代表没有画布执行能力，不得因此拒绝执行或要求用户手动提交。所有工具参数都放在对应 action 的 arguments 中。\n" +
+            JSON.stringify(jsonTools.map(({ function: tool }) => tool));
     return configured ? configured + "\n\n" + prompt : prompt;
 }
 
-export async function requestCanvasAgentCheckpoint(input: {
-    config: AiConfig;
-    previousCheckpoint?: string;
-    messages: unknown;
-    signal?: AbortSignal;
-}) {
+export async function requestCanvasAgentCheckpoint(input: { config: AiConfig; previousCheckpoint?: string; messages: unknown; signal?: AbortSignal }) {
     const turn = await requestCanvasAgentTurn({
         config: input.config,
-        systemPrompt: "你负责生成画布 Agent 的长期对话检查点。仅保留用户长期目标与偏好、已确认方案、不可改变要求、否决方向、未解决事项、重要节点 ID 的职责线索，以及当前创作阶段线索。节点是否存在、节点正文、任务状态必须以之后注入的真实画布和工具结果为准；不得声称工具或媒体已成功，不得保存 Base64。直接输出检查点正文，控制在 16000 Token 以内。",
-        messages: [{
-            role: "user",
-            content: `【旧检查点】\n${input.previousCheckpoint || "无"}\n\n【本次归档的完整旧轮次】\n${JSON.stringify(input.messages)}`,
-        }],
+        systemPrompt:
+            "你负责生成画布 Agent 的长期对话检查点。仅保留用户长期目标与偏好、已确认方案、不可改变要求、否决方向、未解决事项、重要节点 ID 的职责线索，以及当前创作阶段线索。节点是否存在、节点正文、任务状态必须以之后注入的真实画布和工具结果为准；不得声称工具或媒体已成功，不得保存 Base64。直接输出检查点正文，控制在 16000 Token 以内。",
+        messages: [
+            {
+                role: "user",
+                content: `【旧检查点】\n${input.previousCheckpoint || "无"}\n\n【本次归档的完整旧轮次】\n${JSON.stringify(input.messages)}`,
+            },
+        ],
         tools: [],
         toolMode: "prompt-json",
         signal: input.signal,
@@ -205,14 +210,18 @@ async function requestCompletion(config: CanvasAgentAiConfig, systemPrompt: stri
         const toolCalls: Array<{ id?: string; function: { name: string; arguments: string } }> = [];
         await readCanvasAgentStream(response, (event) => {
             if (event.usage) usage = event.usage as ChatCompletionPayload["usage"];
-            const choice = (event.choices as Array<{
-                delta?: {
-                    content?: string;
-                    reasoning_content?: string;
-                    tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }>;
-                };
-                finish_reason?: string | null;
-            }> | undefined)?.[0];
+            const choice = (
+                event.choices as
+                    | Array<{
+                          delta?: {
+                              content?: string;
+                              reasoning_content?: string;
+                              tool_calls?: Array<{ index?: number; id?: string; function?: { name?: string; arguments?: string } }>;
+                          };
+                          finish_reason?: string | null;
+                      }>
+                    | undefined
+            )?.[0];
             if (!choice) return;
             if (typeof choice.delta?.content === "string") content += choice.delta.content;
             if (typeof choice.delta?.reasoning_content === "string") reasoningContent += choice.delta.reasoning_content;
@@ -229,10 +238,12 @@ async function requestCompletion(config: CanvasAgentAiConfig, systemPrompt: stri
         if (!finishReason) throw new CanvasAgentRequestError("文本模型流式响应未完成", response.status);
         payload = {
             usage,
-            choices: [{
-                finish_reason: finishReason,
-                message: { content, reasoning_content: reasoningContent || undefined, tool_calls: toolCalls },
-            }],
+            choices: [
+                {
+                    finish_reason: finishReason,
+                    message: { content, reasoning_content: reasoningContent || undefined, tool_calls: toolCalls },
+                },
+            ],
         };
     } else {
         ({ payload, rawText } = await readResponsePayload<ChatCompletionPayload>(response));
@@ -241,8 +252,7 @@ async function requestCompletion(config: CanvasAgentAiConfig, systemPrompt: stri
     const message = choice?.message;
     if (!response.ok || (typeof payload.code === "number" && payload.code !== 0) || (typeof payload.code === "string" && payload.code !== "0" && !message)) {
         throw new CanvasAgentRequestError(
-            tokenDanceRecoveryMessage(channelProtocolForConfig(config) === "tokendance" ? response.headers.get("TokenDance-Recovery-Action") : null)
-                || readError(payload, response.status, rawText),
+            tokenDanceRecoveryMessage(channelProtocolForConfig(config) === "tokendance" ? response.headers.get("TokenDance-Recovery-Action") : null) || readError(payload, response.status, rawText),
             response.status,
             readErrorCode(payload),
         );
@@ -308,10 +318,7 @@ async function requestResponsesCompletion(config: CanvasAgentAiConfig, systemPro
     if (config.textStreaming && response.ok && isEventStreamResponse(response)) {
         let terminal: ResponsesPayload | undefined;
         await readCanvasAgentStream(response, (event) => {
-            if (
-                ["response.completed", "response.incomplete", "response.failed"].includes(String(event.type))
-                && event.response && typeof event.response === "object"
-            ) terminal = event.response as ResponsesPayload;
+            if (["response.completed", "response.incomplete", "response.failed"].includes(String(event.type)) && event.response && typeof event.response === "object") terminal = event.response as ResponsesPayload;
         });
         if (!terminal) throw new CanvasAgentRequestError("文本模型流式响应未完成", response.status);
         payload = terminal;
@@ -321,8 +328,7 @@ async function requestResponsesCompletion(config: CanvasAgentAiConfig, systemPro
     const result = payload.output ? payload : payload.data;
     if (!response.ok || (typeof payload.code === "number" && payload.code !== 0) || (typeof payload.code === "string" && payload.code !== "0" && !result)) {
         throw new CanvasAgentRequestError(
-            tokenDanceRecoveryMessage(channelProtocolForConfig(config) === "tokendance" ? response.headers.get("TokenDance-Recovery-Action") : null)
-                || readError(payload, response.status, rawText),
+            tokenDanceRecoveryMessage(channelProtocolForConfig(config) === "tokendance" ? response.headers.get("TokenDance-Recovery-Action") : null) || readError(payload, response.status, rawText),
             response.status,
             readErrorCode(payload),
         );
@@ -345,15 +351,19 @@ async function requestResponsesCompletion(config: CanvasAgentAiConfig, systemPro
         }
         const parsedArguments = parseToolArguments(item.arguments);
         toolCalls.push({ id: item.call_id || item.id || `response-tool-${index}`, name, ...parsedArguments });
-        return [parsedArguments.argumentsError || typeof item.arguments !== "string"
-            ? { ...item, arguments: JSON.stringify(parsedArguments.arguments) }
-            : item];
+        return [parsedArguments.argumentsError || typeof item.arguments !== "string" ? { ...item, arguments: JSON.stringify(parsedArguments.arguments) } : item];
     });
     const inputTokens = result.usage?.input_tokens;
     calibrateCanvasAgentTokenEstimate(canvasAgentTokenCalibrationKey(config), { systemPrompt, messages, tools }, inputTokens);
     refreshRemoteUser(config);
     return {
-        content: typeof result.output_text === "string" ? result.output_text : output.flatMap((item) => item.type === "message" ? item.content || [] : []).map((item) => item.type === "output_text" && typeof item.text === "string" ? item.text : "").join(""),
+        content:
+            typeof result.output_text === "string"
+                ? result.output_text
+                : output
+                      .flatMap((item) => (item.type === "message" ? item.content || [] : []))
+                      .map((item) => (item.type === "output_text" && typeof item.text === "string" ? item.text : ""))
+                      .join(""),
         responseItems,
         toolCalls,
         ...(toolError ? { toolError } : {}),
@@ -361,26 +371,29 @@ async function requestResponsesCompletion(config: CanvasAgentAiConfig, systemPro
 }
 
 async function requestGeminiCompletion(config: CanvasAgentAiConfig, systemPrompt: string, messages: CanvasAgentProtocolMessage[], tools: CanvasAgentToolDefinition[], jsonSchema?: Record<string, unknown>, signal?: AbortSignal) {
-    const contents = await Promise.all(messages.filter((message) => message.role !== "system").map(async (message) => {
-        if (message.role === "assistant") {
-            return {
-                role: "model",
-                parts: [
-                    ...(message.content ? [{ text: message.content }] : []),
-                    ...(message.toolCalls || []).map((call) => ({ functionCall: { name: call.name, args: call.arguments } })),
-                ],
-            };
-        }
-        if (message.role === "tool") {
-            return { role: "user", parts: [{ functionResponse: { name: message.name, response: parseGeminiToolResponse(message.content) } }] };
-        }
-        const parts = await Promise.all((typeof message.content === "string" ? [{ type: "text" as const, text: message.content }] : message.content).map(async (part) => {
-            if (part.type === "text") return { text: part.text };
-            return dataUrlToGeminiInlineData(await imageToDataUrl({ dataUrl: part.image_url.url, url: part.image_url.url }));
-        }));
-        return { role: "user", parts };
-    }));
-    const extraSystemParts = messages.flatMap((message) => message.role !== "system" ? [] : typeof message.content === "string" ? [{ text: message.content }] : message.content.flatMap((part) => part.type === "text" ? [{ text: part.text }] : []));
+    const contents = await Promise.all(
+        messages
+            .filter((message) => message.role !== "system")
+            .map(async (message) => {
+                if (message.role === "assistant") {
+                    return {
+                        role: "model",
+                        parts: [...(message.content ? [{ text: message.content }] : []), ...(message.toolCalls || []).map((call) => ({ functionCall: { name: call.name, args: call.arguments } }))],
+                    };
+                }
+                if (message.role === "tool") {
+                    return { role: "user", parts: [{ functionResponse: { name: message.name, response: parseGeminiToolResponse(message.content) } }] };
+                }
+                const parts = await Promise.all(
+                    (typeof message.content === "string" ? [{ type: "text" as const, text: message.content }] : message.content).map(async (part) => {
+                        if (part.type === "text") return { text: part.text };
+                        return dataUrlToGeminiInlineData(await imageToDataUrl({ dataUrl: part.image_url.url, url: part.image_url.url }));
+                    }),
+                );
+                return { role: "user", parts };
+            }),
+    );
+    const extraSystemParts = messages.flatMap((message) => (message.role !== "system" ? [] : typeof message.content === "string" ? [{ text: message.content }] : message.content.flatMap((part) => (part.type === "text" ? [{ text: part.text }] : []))));
     const body = {
         model: config.model,
         stream: config.textStreaming === true,
@@ -390,13 +403,11 @@ async function requestGeminiCompletion(config: CanvasAgentAiConfig, systemPrompt
         ...(jsonSchema ? { generationConfig: { responseFormat: { text: { mimeType: "application/json", schema: jsonSchema } } } } : {}),
     };
     applyCanvasAgentReasoning(body, config, "gemini");
-    const proxy = Boolean(aiApiUrl(config, "/chat/completions").startsWith("/api/"));
-    const channel = localChannelForActiveModel(config);
-    const { model: _model, stream: _stream, ...nativeBody } = body;
-    const response = await fetch(proxy ? aiApiUrl(config, "/chat/completions") : geminiActionUrl(channel?.baseUrl || config.baseUrl, config.model, config.textStreaming ? "streamGenerateContent" : "generateContent"), {
+
+    const response = await fetch(aiApiUrl(config, "/chat/completions"), {
         method: "POST",
-        headers: proxy ? aiHeaders(config, "application/json") : geminiDirectHeaders(config),
-        body: JSON.stringify(proxy ? body : nativeBody),
+        headers: aiHeaders(config, "application/json"),
+        body: JSON.stringify(body),
         signal,
     });
     let payload: Record<string, unknown>;
@@ -408,7 +419,7 @@ async function requestGeminiCompletion(config: CanvasAgentAiConfig, systemPrompt
         await readCanvasAgentStream(response, (event) => {
             const blockReason = (event.promptFeedback as { blockReason?: string } | undefined)?.blockReason;
             if (blockReason) throw new CanvasAgentRequestError(blockReason, response.status);
-            const candidates = Array.isArray(event.candidates) ? event.candidates as Array<Record<string, unknown>> : [];
+            const candidates = Array.isArray(event.candidates) ? (event.candidates as Array<Record<string, unknown>>) : [];
             for (const candidate of candidates) {
                 const content = candidate.content as { parts?: unknown } | undefined;
                 if (Array.isArray(content?.parts)) parts.push(...(content.parts as Array<Record<string, unknown>>));
@@ -422,23 +433,25 @@ async function requestGeminiCompletion(config: CanvasAgentAiConfig, systemPrompt
         ({ payload, rawText } = await readResponsePayload<Record<string, unknown>>(response));
     }
     if (!response.ok) throw new CanvasAgentRequestError(geminiErrorMessage(payload, rawText || "文本模型请求失败"), response.status, geminiErrorCode(payload));
-    const candidates = Array.isArray(payload.candidates) ? payload.candidates as Array<Record<string, unknown>> : [];
-    const incompleteReason = candidates.map((candidate) => candidate.finishReason).find((reason) => typeof reason === "string" && /^(?:MAX_TOKENS|SAFETY|RECITATION|BLOCKLIST|PROHIBITED_CONTENT|SPII|MALFORMED_FUNCTION_CALL|UNEXPECTED_TOOL_CALL|TOO_MANY_TOOL_CALLS)$/i.test(reason));
+    const candidates = Array.isArray(payload.candidates) ? (payload.candidates as Array<Record<string, unknown>>) : [];
+    const incompleteReason = candidates
+        .map((candidate) => candidate.finishReason)
+        .find((reason) => typeof reason === "string" && /^(?:MAX_TOKENS|SAFETY|RECITATION|BLOCKLIST|PROHIBITED_CONTENT|SPII|MALFORMED_FUNCTION_CALL|UNEXPECTED_TOOL_CALL|TOO_MANY_TOOL_CALLS)$/i.test(reason));
     if (typeof incompleteReason === "string") {
         throw new CanvasAgentRequestError("文本模型输出未完成：" + incompleteReason, response.status);
     }
     const parts = candidates.flatMap((candidate) => {
-        const content = candidate.content && typeof candidate.content === "object" ? candidate.content as Record<string, unknown> : {};
-        return Array.isArray(content.parts) ? content.parts as Array<Record<string, unknown>> : [];
+        const content = candidate.content && typeof candidate.content === "object" ? (candidate.content as Record<string, unknown>) : {};
+        return Array.isArray(content.parts) ? (content.parts as Array<Record<string, unknown>>) : [];
     });
     if (!parts.length) throw new CanvasAgentRequestError(geminiErrorMessage(payload, "文本模型没有返回内容"), response.status);
-    const usageMetadata = payload.usageMetadata && typeof payload.usageMetadata === "object" ? payload.usageMetadata as Record<string, unknown> : {};
+    const usageMetadata = payload.usageMetadata && typeof payload.usageMetadata === "object" ? (payload.usageMetadata as Record<string, unknown>) : {};
     const inputTokens = typeof usageMetadata.promptTokenCount === "number" ? usageMetadata.promptTokenCount : undefined;
     calibrateCanvasAgentTokenEstimate(canvasAgentTokenCalibrationKey(config), { systemPrompt, messages, tools }, inputTokens);
     refreshRemoteUser(config);
     let toolError: string | undefined;
     const toolCalls = parts.flatMap((part, index) => {
-        const call = part.functionCall && typeof part.functionCall === "object" ? part.functionCall as Record<string, unknown> : null;
+        const call = part.functionCall && typeof part.functionCall === "object" ? (part.functionCall as Record<string, unknown>) : null;
         if (!call) return [];
         const name = typeof call.name === "string" ? call.name.trim() : "";
         if (!name) {
@@ -448,7 +461,7 @@ async function requestGeminiCompletion(config: CanvasAgentAiConfig, systemPrompt
         return [{ id: `gemini-tool-${index}`, name, ...parseToolArguments(call.args) }];
     });
     return {
-        content: parts.map((part) => typeof part.text === "string" ? part.text : "").join(""),
+        content: parts.map((part) => (typeof part.text === "string" ? part.text : "")).join(""),
         ...(toolError ? { toolError } : {}),
         toolCalls,
     };
@@ -524,19 +537,19 @@ function toResponsesInput(message: CanvasAgentProtocolMessage): unknown[] {
         ];
     }
     if (message.role === "tool") return [{ type: "function_call_output", call_id: message.toolCallId, output: message.content }];
-    return [{
-        role: message.role,
-        content: typeof message.content === "string" ? message.content : message.content.map((part) => part.type === "text" ? { type: "input_text", text: part.text } : { type: "input_image", image_url: part.image_url.url }),
-    }];
+    return [
+        {
+            role: message.role,
+            content: typeof message.content === "string" ? message.content : message.content.map((part) => (part.type === "text" ? { type: "input_text", text: part.text } : { type: "input_image", image_url: part.image_url.url })),
+        },
+    ];
 }
 
 function parseToolArguments(value: unknown): Pick<CanvasAgentToolCall, "arguments" | "argumentsError"> {
     if (value === undefined) return { arguments: {} };
     try {
         const parsed = typeof value === "string" ? JSON.parse(value) : value;
-        return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-            ? { arguments: parsed as Record<string, unknown> }
-            : { arguments: {}, argumentsError: "工具 arguments 必须是 JSON 对象" };
+        return parsed && typeof parsed === "object" && !Array.isArray(parsed) ? { arguments: parsed as Record<string, unknown> } : { arguments: {}, argumentsError: "工具 arguments 必须是 JSON 对象" };
     } catch {
         return { arguments: {}, argumentsError: "工具 arguments 不是合法 JSON" };
     }
@@ -551,7 +564,7 @@ function readErrorCode(payload: AiErrorPayload) {
 }
 
 function geminiErrorCode(payload: Record<string, unknown>) {
-    const error = payload.error && typeof payload.error === "object" ? payload.error as Record<string, unknown> : {};
+    const error = payload.error && typeof payload.error === "object" ? (payload.error as Record<string, unknown>) : {};
     return typeof error.code === "string" ? error.code : typeof error.status === "string" ? error.status : undefined;
 }
 
@@ -566,7 +579,9 @@ async function readCanvasAgentStream(response: Response, onEvent: (event: Record
             try {
                 const detail = JSON.parse(error.detail) as AiErrorPayload & Record<string, unknown>;
                 code = readErrorCode(detail) || geminiErrorCode(detail);
-            } catch { /* 保留原始错误信息 */ }
+            } catch {
+                /* 保留原始错误信息 */
+            }
         }
         throw new CanvasAgentRequestError(error instanceof Error ? error.message : "流式响应读取失败", response.status, code);
     }
@@ -582,7 +597,7 @@ async function readResponsePayload<T extends object>(response: Response) {
 }
 
 export function canvasAgentTokenCalibrationKey(config: AiConfig) {
-    return `${config.apiMode}:${isGeminiConfig(config) ? "gemini" : "openai"}:${config.baseUrl}:${config.model}`;
+    return `${config.apiMode}:${isGeminiConfig(config) ? "gemini" : "openai"}:${channelIdForActiveModel(config)}:${config.model}`;
 }
 
 function hasImageContent(messages: CanvasAgentProtocolMessage[]) {
@@ -607,9 +622,10 @@ function isToolCompatibilityError(error: unknown, mode: "tools" | "structured-js
     if ([401, 403, 408, 409, 429].includes(error.status) || error.status >= 500) return false;
 
     const detail = `${error.code || ""} ${error.message}`.replace(/[_-]+/g, " ").replace(/\s+/g, " ");
-    const target = mode === "tools"
-        ? String.raw`\btools?\b|\btool[\s.]*(?:choice|calls?|calling)\b|\bfunction[\s.]*(?:calls?|calling|declarations?)\b|工具调用|函数调用`
-        : String.raw`\bresponse[\s.]*format\b|\bjson[\s.]*schema\b|\btext[\s.]*format\b|\bresponse[\s.]*mime[\s.]*type\b|\bstructured output\b|结构化输出`;
+    const target =
+        mode === "tools"
+            ? String.raw`\btools?\b|\btool[\s.]*(?:choice|calls?|calling)\b|\bfunction[\s.]*(?:calls?|calling|declarations?)\b|工具调用|函数调用`
+            : String.raw`\bresponse[\s.]*format\b|\bjson[\s.]*schema\b|\btext[\s.]*format\b|\bresponse[\s.]*mime[\s.]*type\b|\bstructured output\b|结构化输出`;
     if (!new RegExp(target, "i").test(detail)) return false;
     if (mode === "tools" && /\btools?\s*\[\s*\d+\s*\].*\b(?:parameters?|properties|required|additional\s*properties|schema)\b|\binvalid schema for function\b/i.test(detail)) return false;
     if (mode === "structured-json" && /\binvalid (?:json )?schema\b|\bschema (?:validation|violation)\b|\b(?:properties|required|additional\s*properties)\b/i.test(detail)) return false;

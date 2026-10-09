@@ -41,7 +41,7 @@ import {
     type WorkflowExternalTaskStart,
     type WorkflowExternalTaskSuccess,
 } from "@/components/workflows/creative-workflow-workspace";
-import { normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
+import { useConfigStore, useEffectiveConfig, type AiConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { nanoid } from "nanoid";
 import { formatBytes, formatDuration, getDataUrlByteSize, readImageMeta } from "@/lib/image-utils";
@@ -118,7 +118,7 @@ type GenerationLog = {
     lastPolledAt?: number;
 };
 
-type GenerationLogConfig = Pick<AiConfig, "channelMode" | "model" | "imageModel" | "activeChannelId" | "imageChannelId" | "quality" | "size" | "count" | "apiMode" | "streamImages" | "streamPartialImages" | "responseFormatB64Json" | "codexCli">;
+type GenerationLogConfig = Pick<AiConfig, "model" | "imageModel" | "activeChannelId" | "imageChannelId" | "quality" | "size" | "count" | "apiMode" | "streamImages" | "streamPartialImages" | "responseFormatB64Json">;
 type RequestSnapshot = { text: string; requestConfig: AiConfig; displayConfig: GenerationLogConfig; references: ReferenceImage[]; workflowRef?: WorkflowRef };
 type GenerationCategory = { id: string; name: string; createdAt: number };
 type ResultViewMode = "all" | "category";
@@ -177,7 +177,7 @@ export default function ImagePage() {
     const generationCount = Math.max(1, Math.min(10, Number(config.count) || 1));
     const pendingCount = results.filter((item) => item.status === "pending").length;
     const pendingLogCount = logs.filter((log) => log.status === "生成中" && log.task && !log.images.length).length;
-    const usesBackendImageTasks = (value: AiConfig) => value.channelMode === "remote" || (value.channelMode === "local" && Boolean(token));
+    const usesBackendImageTasks = () => Boolean(token);
     const imageTaskConfig = () => effectiveConfigRef.current;
 
     const restorePendingLogResults = (sourceLogs: GenerationLog[]) => {
@@ -504,7 +504,7 @@ export default function ImagePage() {
             await submitPersistentGenerationBatch(snapshot);
             return;
         }
-        if (usesBackendImageTasks(snapshot.requestConfig)) {
+        if (usesBackendImageTasks()) {
             await submitPersistentGenerationBatch(snapshot);
             return;
         }
@@ -1031,7 +1031,6 @@ export default function ImagePage() {
         if (typeof log.config.streamImages === "boolean") updateConfig("streamImages", log.config.streamImages);
         if (log.config.streamPartialImages) updateConfig("streamPartialImages", log.config.streamPartialImages);
         if (typeof log.config.responseFormatB64Json === "boolean") updateConfig("responseFormatB64Json", log.config.responseFormatB64Json);
-        if (typeof log.config.codexCli === "boolean") updateConfig("codexCli", log.config.codexCli);
     };
 
     const copyPrompt = async (text: string) => {
@@ -1089,7 +1088,7 @@ export default function ImagePage() {
     };
 
     const handleWorkflowTaskStarted = (task: WorkflowExternalTaskStart) => {
-        if (usesBackendImageTasks(effectiveConfig)) {
+        if (usesBackendImageTasks()) {
             setResultViewMode("all");
             setActiveResultCategoryId(null);
             return;
@@ -2694,7 +2693,7 @@ function isClientImageTaskId(value?: string) {
 
 function isLocalOnlyImageLog(log: GenerationLog) {
     if (isClientImageTaskId(log.task?.id) && !log.task?.source && !log.task?.source_id) return true;
-    if (log.config.channelMode === "remote" || log.task) return false;
+    if (log.task) return false;
     return log.status !== "成功" || log.images.length > 0;
 }
 
@@ -2804,7 +2803,6 @@ function persistableImageUrl(dataUrl?: string, storageKey?: string) {
 function normalizeLogConfig(log: Partial<GenerationLog>): GenerationLogConfig {
     const taskChannelId = imageTaskChannelId(log.task);
     return {
-        channelMode: log.config?.channelMode || "local",
         model: log.config?.model || log.model || "",
         imageModel: log.config?.imageModel || log.model || "",
         activeChannelId: taskChannelId || log.config?.activeChannelId || log.config?.imageChannelId || "",
@@ -2816,18 +2814,15 @@ function normalizeLogConfig(log: Partial<GenerationLog>): GenerationLogConfig {
         streamImages: typeof log.config?.streamImages === "string" ? log.config.streamImages : log.config?.streamImages ? "1" : "",
         streamPartialImages: typeof log.config?.streamPartialImages === "string" ? log.config.streamPartialImages : "1",
         responseFormatB64Json: typeof log.config?.responseFormatB64Json === "string" ? log.config.responseFormatB64Json : log.config?.responseFormatB64Json === false ? "" : "1",
-        codexCli: typeof log.config?.codexCli === "string" ? log.config.codexCli : log.config?.codexCli ? "1" : "",
     };
 }
 
 function imageTaskChannelId(task?: CanvasImageTask | null) {
-    return task?.userChannelId || task?.channelId || "";
+    return task?.channelId || "";
 }
 
 function resolveImageChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {
-    const channels = config.channelMode === "remote"
-        ? config.publicChannels.map((channel) => ({ id: channel.id || "", models: channel.models || [] }))
-        : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, models: channel.models }));
+    const channels = config.publicChannels.filter((channel) => channel.enabled !== false).map((channel) => ({ id: channel.id || "", models: channel.models || [] }));
     for (const id of preferredIds) {
         const channelId = (id || "").trim();
         if (channelId && channels.some((channel) => channel.id === channelId && channel.models.includes(model))) return channelId;
@@ -2837,7 +2832,6 @@ function resolveImageChannelId(config: AiConfig, model: string, ...preferredIds:
 
 function buildGenerationLogConfig(config: AiConfig): GenerationLogConfig {
     return {
-        channelMode: config.channelMode,
         model: config.model,
         imageModel: config.imageModel,
         activeChannelId: config.imageChannelId || config.activeChannelId,
@@ -2849,7 +2843,6 @@ function buildGenerationLogConfig(config: AiConfig): GenerationLogConfig {
         streamImages: config.streamImages,
         streamPartialImages: config.streamPartialImages,
         responseFormatB64Json: config.responseFormatB64Json,
-        codexCli: config.codexCli,
     };
 }
 

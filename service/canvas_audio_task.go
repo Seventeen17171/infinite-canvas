@@ -16,7 +16,6 @@ type CanvasAudioTaskCreateInput struct {
 	ClientTaskID    string
 	Model           string
 	ChannelID       string
-	UserChannelID   string
 	ChannelName     string
 	WorkflowRef     string
 	Credits         float64
@@ -39,7 +38,6 @@ func CreateCanvasAudioTask(input CanvasAudioTaskCreateInput) (model.CanvasAudioT
 		NodeID:          strings.TrimSpace(input.NodeID),
 		Model:           strings.TrimSpace(input.Model),
 		ChannelID:       strings.TrimSpace(input.ChannelID),
-		UserChannelID:   strings.TrimSpace(input.UserChannelID),
 		ChannelName:     strings.TrimSpace(input.ChannelName),
 		WorkflowRef:     input.WorkflowRef,
 		Credits:         input.Credits,

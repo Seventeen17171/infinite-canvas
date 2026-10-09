@@ -1,7 +1,6 @@
 package handler
 
 import (
-	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -15,7 +14,6 @@ type aiProtocolRequestMode uint8
 const (
 	aiProtocolProxyRequest aiProtocolRequestMode = iota
 	aiProtocolVideoRequest
-	aiProtocolDirectRequest
 )
 
 type aiProtocolRequest struct {
@@ -28,7 +26,6 @@ type aiProtocolRequest struct {
 	path         string
 	failureLabel string
 	protocol     string
-	formData     bool
 }
 
 type aiProtocolAdapter struct {
@@ -39,10 +36,8 @@ type aiProtocolAdapter struct {
 	copyResponse  func(http.ResponseWriter, *http.Response, *http.Request, model.ModelChannel, aiLogContext, func()) bool
 	videoResponse func([]byte, *http.Request, model.ModelChannel, string, bool) ([]byte, bool)
 	videoError    func([]byte, model.ModelChannel, string, bool) string
-	videoContent  func(http.ResponseWriter, *http.Request, string) bool
 	videoID       func(string, string) bool
 	allImages     func(string) bool
-	uploads       func(model.ModelChannel, map[string]bool) (map[string]directAIUpload, error)
 }
 
 // HTTP 混合钩子留在原 handler 包边界，避免 service 反向依赖 handler。
@@ -72,9 +67,6 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return tokenDancePayloadError(payload)
 		},
-		uploads: func(model.ModelChannel, map[string]bool) (map[string]directAIUpload, error) {
-			return nil, nil
-		},
 	},
 	{
 		id: service.ModelChannelProtocolAutoDL,
@@ -90,7 +82,7 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return path, true
 		},
-		prepare: prepareAutoDLRequest,
+		prepare:      prepareAutoDLRequest,
 		copyResponse: copyAutoDLResponse,
 		videoResponse: func(payload []byte, _ *http.Request, channel model.ModelChannel, _ string, _ bool) ([]byte, bool) {
 			if !service.IsAutoDLChannel(channel) {
@@ -98,16 +90,9 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return transformAutoDLVideoResponse(payload), true
 		},
-		uploads: func(_ model.ModelChannel, kinds map[string]bool) (map[string]directAIUpload, error) {
-			if len(kinds) > 0 {
-				return nil, errors.New("AutoDL 参考素材请使用现有云存储上传后的地址")
-			}
-			return nil, nil
-		},
 	},
 	{
-		id:           service.ModelChannelProtocolGemini,
-		videoContent: serveGeminiVideoTaskContent,
+		id: service.ModelChannelProtocolGemini,
 		path: func(channel model.ModelChannel, modelName string, path string) (string, bool) {
 			if !service.IsGeminiChannel(channel) {
 				return path, false
@@ -126,7 +111,7 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			return path, false
 		},
 		prepare: func(input aiProtocolRequest) (aiProtocolRequest, bool, error) {
-			if input.mode == aiProtocolDirectRequest || !service.IsGeminiChannel(input.channel) {
+			if !service.IsGeminiChannel(input.channel) {
 				return input, false, nil
 			}
 			input.failureLabel = "Gemini"
@@ -259,18 +244,6 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			return readKIECreateTaskErrorMessage(payload)
 		},
-		uploads: func(_ model.ModelChannel, kinds map[string]bool) (map[string]directAIUpload, error) {
-			uploads := map[string]directAIUpload{}
-			for kind, uploadPath := range map[string]string{"image": "images/user-uploads", "video": "videos/user-uploads", "audio": "audios/user-uploads"} {
-				if kinds[kind] {
-					uploads[kind] = directAIUpload{
-						URL: kieFileStreamUploadURL, FileField: "file", FileNameField: "fileName",
-						ExtraFields: map[string]string{"uploadPath": uploadPath}, ResponsePaths: []string{"data.downloadUrl", "data.fileUrl", "data.url"},
-					}
-				}
-			}
-			return uploads, nil
-		},
 	},
 	{
 		id: service.ModelChannelProtocolAPIMart,
@@ -302,9 +275,6 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			}
 			video := input.path == "/videos/generations"
 			image := input.mode != aiProtocolVideoRequest && (input.path == "/images/generations" || input.path == "/images/edits")
-			if input.mode == aiProtocolDirectRequest {
-				video, image = input.endpoint == "/videos", input.endpoint != "/videos"
-			}
 			var err error
 			if video {
 				input.failureLabel = "APIMart video"
@@ -329,16 +299,6 @@ var builtinAIProtocols = []aiProtocolAdapter{
 				return transformAPIMartCreateVideoResponse(payload, modelName)
 			}
 			return nil, false
-		},
-		uploads: func(channel model.ModelChannel, kinds map[string]bool) (map[string]directAIUpload, error) {
-			if kinds["video"] || kinds["audio"] {
-				return nil, errors.New("APIMart 本地视频和音频参考暂不支持直传，请使用公网媒体地址")
-			}
-			uploads := map[string]directAIUpload{}
-			if kinds["image"] {
-				uploads["image"] = directAIUpload{URL: service.BuildModelChannelURL(channel, apimartImageUploadPath), FileField: "file", ResponsePaths: []string{"url"}}
-			}
-			return uploads, nil
 		},
 	},
 	{
@@ -365,9 +325,6 @@ var builtinAIProtocols = []aiProtocolAdapter{
 			return path, true
 		},
 		prepare: prepareArkSeedanceRequest,
-		uploads: func(model.ModelChannel, map[string]bool) (map[string]directAIUpload, error) {
-			return nil, nil
-		},
 	},
 	{
 		id: "model:agnes",

@@ -46,13 +46,11 @@ const emptySettings: AdminSettings = {
             defaultTextModel: "",
             systemPrompt: "",
             systemPrompts: { image: "", video: "", text: "", workflow: "", workflowAgent: "" },
-            allowCustomChannel: true,
-            allowUserRemoteChannel: false,
         },
         auth: { allowRegister: true, linuxDo: { enabled: false } },
         storage: { mode: "local_indexeddb", allowUserProvider: false },
     },
-    private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { localDirectReportEnabled: false, cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, auth: { linuxDo: { clientId: "", clientSecret: "" } }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
+    private: { channels: [], promptSync: { enabled: true, cron: "0 0 * * *" }, aiLog: { cleanup: { enabled: false, retentionDays: 14, cron: "0 3 * * *" } }, auth: { linuxDo: { clientId: "", clientSecret: "" } }, storage: { mode: "local_indexeddb", allowUserProvider: false, allowUserGlobalProvider: true, autoSyncAllAssets: false, providers: [], roundRobinCursor: 0, capacityCheck: { enabled: false, cron: "0 */6 * * *" }, capacityLimitBytes: 9 * 1024 * 1024 * 1024 } },
 };
 const emptyChannel: AdminModelChannel = { id: "", protocol: "openai", name: "", baseUrl: modelChannelDefaultBaseUrls.openai, apiKey: "", models: [], weight: 1, timeout: 600, enabled: true, remark: "" };
 const emptyS3StorageProvider: AdminStorageProvider = { id: "", name: "", type: "s3", endpoint: "", region: "auto", bucket: "", accessKeyId: "", secretAccessKey: "", publicBaseUrl: "", pathPrefix: "canvas", username: "", password: "", weight: 1, enabled: true, ownerUserId: "", capacityBytes: 0, capacityCheckedAt: "", capacityExceeded: false };
@@ -88,8 +86,7 @@ export default function AdminSettingsPage() {
     const publicWorkflows = Form.useWatch(["public", "modelChannel", "availableWorkflows"], form) || [];
     const storageProviders = Form.useWatch(["private", "storage", "providers"], form) || [];
     const channelProtocol = Form.useWatch("protocol", channelForm);
-    const channelBaseUrl = Form.useWatch("baseUrl", channelForm);
-    const modelLabel = useAutoDLWorkflowNames([...channels, { protocol: channelProtocol, baseUrl: channelBaseUrl }]);
+    const modelLabel = useAutoDLWorkflowNames(channels);
     const publicModelLabel = (model: string) => modelLabel(model, channels.find((channel) => channel.protocol === "autodl" && channel.models.includes(model)));
     const channelApiKeyUrl = channelProtocol ? modelChannelApiKeyUrls[channelProtocol] : undefined;
     const channelModels = useMemo(() => collectChannelModels(channels), [channels]);
@@ -402,6 +399,7 @@ export default function AdminSettingsPage() {
                             </Button>
                         </Space>
                     </Flex>
+                    <Typography.Paragraph type="secondary" style={{ marginBottom: 0 }}>模型由管理员集中配置，团队成员统一使用已开放的云端模型。</Typography.Paragraph>
                 </Card>
 
                 <Card variant="borderless">
@@ -495,16 +493,6 @@ export default function AdminSettingsPage() {
                                         </Row>
                                         <Form.Item name={["public", "modelChannel", "systemPrompt"]} hidden>
                                             <Input />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={24}>
-                                        <Form.Item name={["public", "modelChannel", "allowCustomChannel"]} label="是否允许用户自定义渠道" extra="开启后，前端可提供用户自定义 baseUrl 直连模式" valuePropName="checked">
-                                            <Switch />
-                                        </Form.Item>
-                                    </Col>
-                                    <Col span={24}>
-                                        <Form.Item name={["public", "modelChannel", "allowUserRemoteChannel"]} label="是否允许普通用户使用云端渠道" extra="关闭后，普通用户只能使用本地直连；管理员仍可使用云端渠道" valuePropName="checked">
-                                            <Switch />
                                         </Form.Item>
                                     </Col>
                                     <Col span={24}>
@@ -617,11 +605,6 @@ export default function AdminSettingsPage() {
                                 </Card>
                                 <Card size="small" title="AI 调用日志">
                                     <Row gutter={16}>
-                                        <Col xs={24} md={6}>
-                                            <Form.Item name={["private", "aiLog", "localDirectReportEnabled"]} label="本地直连日志上报" valuePropName="checked" extra="关闭后本地直连不上报；云端渠道仍默认记录。">
-                                                <Switch />
-                                            </Form.Item>
-                                        </Col>
                                         <Col xs={24} md={6}>
                                             <Form.Item name={["private", "aiLog", "cleanup", "enabled"]} label="开启自动清理" valuePropName="checked" extra="日志按天写入本地文件，不保存到 SQLite。">
                                                 <Switch />
@@ -969,7 +952,7 @@ export default function AdminSettingsPage() {
                                 <Form.Item label="渠道可用模型">
                                     <Space.Compact style={{ width: "100%" }}>
                                         <Form.Item name="models" noStyle>
-                                            <Select mode="tags" showSearch={{ optionFilterProp: ["label", "value"] }} maxTagCount="responsive" tokenSeparators={[",", "\n"]} options={knownModels.map((model) => ({ label: modelLabel(model, { protocol: channelProtocol, baseUrl: channelBaseUrl }), value: model }))} />
+                                            <Select mode="tags" showSearch={{ optionFilterProp: ["label", "value"] }} maxTagCount="responsive" tokenSeparators={[",", "\n"]} options={knownModels.map((model) => ({ label: modelLabel(model, { protocol: channelProtocol, id: editingChannelIndex === null ? undefined : channels[editingChannelIndex]?.id }), value: model }))} />
                                         </Form.Item>
                                         <Button onClick={() => openChannelModelSelector()}>选择模型</Button>
                                     </Space.Compact>
@@ -1144,7 +1127,6 @@ function normalizePrivateSetting(setting: Partial<AdminSettings["private"]> = {}
             cron: setting.promptSync?.cron || "0 0 * * *",
         },
         aiLog: {
-            localDirectReportEnabled: setting.aiLog?.localDirectReportEnabled === true,
             cleanup: {
                 enabled: setting.aiLog?.cleanup?.enabled === true,
                 retentionDays: Number(setting.aiLog?.cleanup?.retentionDays) || 14,

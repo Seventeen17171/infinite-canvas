@@ -11,22 +11,12 @@ import (
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
-func UserComfyBridges(w http.ResponseWriter, r *http.Request) {
-	manageComfyBridges(w, r, "personal", "")
-}
 func AdminComfyBridges(w http.ResponseWriter, r *http.Request) {
 	manageComfyBridges(w, r, "system", "system")
 }
 
 func manageComfyBridges(w http.ResponseWriter, r *http.Request, scope, ownerID string) {
-	if scope == "personal" {
-		user, ok := service.UserFromContext(r.Context())
-		if !ok {
-			FailWithStatus(w, http.StatusUnauthorized, "请先登录")
-			return
-		}
-		ownerID = user.ID
-	}
+
 	if r.Method == http.MethodGet {
 		items, err := service.ListComfyBridges(scope, ownerID)
 		if err != nil {
@@ -51,20 +41,8 @@ func manageComfyBridges(w http.ResponseWriter, r *http.Request, scope, ownerID s
 	OK(w, item)
 }
 
-func UserDeleteComfyBridge(w http.ResponseWriter, r *http.Request, id string) {
-	deleteComfyBridge(w, r, "personal", "", id)
-}
 func AdminDeleteComfyBridge(w http.ResponseWriter, r *http.Request, id string) {
 	deleteComfyBridge(w, r, "system", "system", id)
-}
-
-func UserComfyBridgeInspect(w http.ResponseWriter, r *http.Request) {
-	user, ok := service.UserFromContext(r.Context())
-	if !ok {
-		FailWithStatus(w, http.StatusUnauthorized, "请先登录")
-		return
-	}
-	inspectComfyBridge(w, r, "personal", user.ID)
 }
 
 func AdminComfyBridgeInspect(w http.ResponseWriter, r *http.Request) {
@@ -86,14 +64,7 @@ func inspectComfyBridge(w http.ResponseWriter, r *http.Request, scope, ownerID s
 }
 
 func deleteComfyBridge(w http.ResponseWriter, r *http.Request, scope, ownerID, id string) {
-	if scope == "personal" {
-		user, ok := service.UserFromContext(r.Context())
-		if !ok {
-			FailWithStatus(w, http.StatusUnauthorized, "请先登录")
-			return
-		}
-		ownerID = user.ID
-	}
+
 	if err := service.DeleteComfyBridge(scope, ownerID, id); err != nil {
 		FailError(w, err)
 		return

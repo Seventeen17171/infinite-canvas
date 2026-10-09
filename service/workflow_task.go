@@ -49,12 +49,9 @@ func CreateWorkflowTask(ctx context.Context, user model.AuthUser, input Workflow
 		return prior.result, nil
 	}
 	billingName := workflowBillingName(input.Ref)
-	credits := 0.0
-	if input.Ref.Scope == "system" {
-		credits, err = ModelCost(billingName)
-		if err != nil {
-			return WorkflowTaskResult{}, err
-		}
+	credits, err := ModelCost(billingName)
+	if err != nil {
+		return WorkflowTaskResult{}, err
 	}
 	if err := createWorkflowTaskRecord(user, taskID, resolved, input, string(refJSON), billingName, credits); err != nil {
 		if prior, found, lookupErr := workflowTaskSnapshot(user.ID, taskID); lookupErr == nil && found && prior.ref == string(refJSON) {
@@ -118,6 +115,10 @@ func GetWorkflowTask(ctx context.Context, user model.AuthUser, taskID string) (W
 	}
 	if !found {
 		return WorkflowTaskResult{}, ErrWorkflowTaskNotFound
+	}
+	var ref WorkflowRef
+	if json.Unmarshal([]byte(snapshot.ref), &ref) != nil || ref.Scope != "system" {
+		return WorkflowTaskResult{}, errors.New("个人工作流渠道已停用，历史任务无法继续调用")
 	}
 	bridgeRequest, hasBridge, err := repository.GetComfyBridgeRequestByTaskID(taskID)
 	if err != nil {
@@ -245,29 +246,24 @@ func workflowBillingName(ref WorkflowRef) string {
 }
 
 func createWorkflowTaskRecord(user model.AuthUser, id string, resolved ResolvedWorkflow, input WorkflowRunInput, ref, billingName string, credits float64) error {
-	channelID, userChannelID := "", ""
-	if input.Ref.Scope == "system" {
-		channelID = input.Ref.ChannelID
-	} else {
-		userChannelID = input.Ref.ChannelID
-	}
+	channelID := input.Ref.ChannelID
 	switch resolved.Entry.Capability {
 	case "image":
 		source := "workflow"
 		if input.Source == "image-workbench" || input.Source == "canvas" {
 			source = input.Source
 		}
-		_, err := CreateCanvasImageTask(CanvasImageTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, Source: source, SourceID: input.SourceID, NodeID: input.NodeID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, UserChannelID: userChannelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Prompt: input.Prompt})
+		_, err := CreateCanvasImageTask(CanvasImageTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, Source: source, SourceID: input.SourceID, NodeID: input.NodeID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Prompt: input.Prompt})
 		return err
 	case "video":
 		source := "workflow"
 		if input.Source == "video-workbench" || input.Source == "canvas" {
 			source = input.Source
 		}
-		_, err := CreateVideoTask(VideoTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, Source: source, SourceID: input.SourceID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, UserChannelID: userChannelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Status: "queued", Seconds: input.VideoSeconds, Size: input.Size})
+		_, err := CreateVideoTask(VideoTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, Source: source, SourceID: input.SourceID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Status: "queued", Seconds: input.VideoSeconds, Size: input.Size})
 		return err
 	case "audio":
-		_, err := CreateCanvasAudioTask(CanvasAudioTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, SourceID: input.SourceID, NodeID: input.NodeID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, UserChannelID: userChannelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Prompt: input.Prompt})
+		_, err := CreateCanvasAudioTask(CanvasAudioTaskCreateInput{UserID: user.ID, UserDisplayName: user.DisplayName, SourceID: input.SourceID, NodeID: input.NodeID, ClientTaskID: id, Model: resolved.Entry.Title, ChannelID: channelID, ChannelName: resolved.Channel.Name, WorkflowRef: ref, Credits: credits, BillingName: billingName, BillingPath: "/api/v1/workflow-tasks", Prompt: input.Prompt})
 		return err
 	}
 	return errors.New("工作流用途无效")

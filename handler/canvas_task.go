@@ -27,6 +27,9 @@ import (
 )
 
 func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	user, ok := service.UserFromContext(r.Context())
 	if !ok {
 		Fail(w, "未登录或权限不足")
@@ -43,12 +46,11 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	channelID = firstNonEmpty(channelID, r.Header.Get("X-Model-Channel-ID"))
-	userChannelID := r.Header.Get(userModelChannelHeader)
-	if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" {
+	if strings.TrimSpace(channelID) == "" {
 		Fail(w, "缺少模型渠道")
 		return
 	}
-	channel, resolvedUserChannelID, err := selectAIRequestChannel(user, modelName, channelID, userChannelID, true)
+	channel, err := service.SelectModelChannelForModel(modelName, channelID, true)
 	if err != nil {
 		log.Printf("canvas image task select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
@@ -63,7 +65,6 @@ func CreateCanvasImageTask(w http.ResponseWriter, r *http.Request) {
 		ClientTaskID:    clientTaskID,
 		Model:           modelName,
 		ChannelID:       channel.ID,
-		UserChannelID:   resolvedUserChannelID,
 		ChannelName:     channel.Name,
 		Prompt:          prompt,
 		GenerationType:  strings.TrimPrefix(endpoint, "/images/"),
@@ -180,6 +181,9 @@ func DeleteUserCanvasTasks(w http.ResponseWriter, r *http.Request) {
 }
 
 func CreateCanvasAudioTask(w http.ResponseWriter, r *http.Request) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	user, ok := service.UserFromContext(r.Context())
 	if !ok {
 		Fail(w, "未登录或权限不足")
@@ -196,12 +200,11 @@ func CreateCanvasAudioTask(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	channelID = firstNonEmpty(channelID, r.Header.Get("X-Model-Channel-ID"))
-	userChannelID := r.Header.Get(userModelChannelHeader)
-	if strings.TrimSpace(channelID) == "" && strings.TrimSpace(userChannelID) == "" {
+	if strings.TrimSpace(channelID) == "" {
 		Fail(w, "缺少模型渠道")
 		return
 	}
-	channel, resolvedUserChannelID, err := selectAIRequestChannel(user, modelName, channelID, userChannelID, true)
+	channel, err := service.SelectModelChannelForModel(modelName, channelID, true)
 	if err != nil {
 		log.Printf("canvas audio task select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
@@ -215,7 +218,6 @@ func CreateCanvasAudioTask(w http.ResponseWriter, r *http.Request) {
 		ClientTaskID:    clientTaskID,
 		Model:           modelName,
 		ChannelID:       channel.ID,
-		UserChannelID:   resolvedUserChannelID,
 		ChannelName:     channel.Name,
 		Prompt:          prompt,
 		Endpoint:        endpoint,
@@ -373,7 +375,7 @@ func executeCanvasAIRequest(user model.AuthUser, endpoint string, body []byte, c
 		request.Header.Set("Content-Type", contentType)
 	}
 	if strings.TrimSpace(userChannelID) != "" {
-		request.Header.Set(userModelChannelHeader, userChannelID)
+		return nil, http.StatusBadRequest, "", errors.New("个人模型渠道已停用，历史任务无法继续调用")
 	} else if strings.TrimSpace(channelID) != "" {
 		request.Header.Set("X-Model-Channel-ID", channelID)
 	}
@@ -407,6 +409,9 @@ func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, 
 	if err != nil {
 		return nil, "", "", "", "", "", "", "", "", err
 	}
+	if err := rejectModelConnectionOverrides(raw, contentType); err != nil {
+		return nil, "", "", "", "", "", "", "", "", err
+	}
 	if strings.HasPrefix(contentType, "multipart/form-data") {
 		body, cleanedContentType, meta, err := stripCanvasTaskMultipartFields(raw, contentType, strings.HasPrefix(fallbackEndpoint, "/images/"))
 		if err != nil {
@@ -436,6 +441,9 @@ func readCanvasTaskAIRequest(r *http.Request, fallbackEndpoint string) ([]byte, 
 	}
 	if len(body) == 0 {
 		return nil, "", "", "", "", "", "", "", "", errors.New("任务请求体不能为空")
+	}
+	if err := rejectModelConnectionOverrides(body, "application/json"); err != nil {
+		return nil, "", "", "", "", "", "", "", "", err
 	}
 	endpoint := firstNonEmpty(wrapper.Endpoint, fallbackEndpoint)
 	return body, "application/json", endpoint, wrapper.Source, wrapper.NodeID, wrapper.SourceID, firstNonEmpty(wrapper.ClientTaskID, wrapper.TaskID), wrapper.Prompt, wrapper.ChannelID, nil

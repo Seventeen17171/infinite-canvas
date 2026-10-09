@@ -19,23 +19,10 @@ import (
 
 const userModelChannelHeader = "X-User-Model-Channel-ID"
 
-func selectAIRequestChannel(user model.AuthUser, modelName string, channelID string, userChannelID string, publicOnly bool) (model.ModelChannel, string, error) {
-	userChannelID = strings.TrimSpace(userChannelID)
-	if userChannelID != "" {
-		channel, err := service.SelectUserLocalModelChannelForModel(user.ID, modelName, userChannelID)
-		return channel, userChannelID, err
-	}
-	if !service.UserCanUseRemoteModelChannel(user) {
-		return model.ModelChannel{}, "", fmt.Errorf("当前账号未开放云端渠道")
-	}
-	channel, err := service.SelectModelChannelForModel(modelName, channelID, publicOnly)
-	return channel, "", err
-}
-
 func failAIChannelSelect(w http.ResponseWriter, err error, fallback string) {
 	message := strings.TrimSpace(err.Error())
 	switch message {
-	case "当前账号未开放云端渠道", "请先登录", "缺少模型名称", "缺少模型渠道", "本地渠道不存在", "本地渠道配置不完整", "本地渠道不支持该模型", "指定模型渠道不可用", "模型未开放":
+	case "个人模型渠道已停用，请使用后台配置的模型", "请先登录", "缺少模型名称", "缺少模型渠道", "指定模型渠道不可用", "模型未开放":
 		Fail(w, message)
 	default:
 		Fail(w, fallback)
@@ -63,23 +50,25 @@ func AIVideos(w http.ResponseWriter, r *http.Request) {
 }
 
 func AIVideo(w http.ResponseWriter, r *http.Request, id string) {
-	if serveAIVideoTask(w, r, id) {
+	if rejectRetiredModelConnection(w, r) {
 		return
 	}
-	if isClientVideoTaskID(id) {
-		OK(w, map[string]any{"id": id, "task_id": id, "object": "video", "status": "queued", "progress": 0})
+	task, ok := ownedVideoTask(w, r, id)
+	if !ok {
 		return
 	}
-	proxyAIGetRequest(w, r, "/videos/"+id)
+	OK(w, service.VideoTaskResponse(task))
 }
 
 func AIVideoContent(w http.ResponseWriter, r *http.Request, id string) {
-	for _, adapter := range builtinAIProtocols {
-		if adapter.videoContent != nil && adapter.videoContent(w, r, id) {
-			return
-		}
+	if rejectRetiredModelConnection(w, r) {
+		return
 	}
-	proxyAIGetRequest(w, r, "/videos/"+id+"/content")
+	task, ok := ownedVideoTask(w, r, id)
+	if !ok {
+		return
+	}
+	serveVideoTaskContent(w, r, task)
 }
 
 func AIAudioSpeech(w http.ResponseWriter, r *http.Request) {
@@ -96,6 +85,9 @@ func AITTSVoices(w http.ResponseWriter, r *http.Request) {
 }
 
 func proxyAIGetRequest(w http.ResponseWriter, r *http.Request, path string) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	startedAt := time.Now()
 	user, ok := service.UserFromContext(r.Context())
 	if !ok {
@@ -106,7 +98,7 @@ func proxyAIGetRequest(w http.ResponseWriter, r *http.Request, path string) {
 	if strings.TrimSpace(modelName) == "" {
 		modelName = "Agnes-Video-V2.0"
 	}
-	channel, _, err := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader), false)
+	channel, err := service.SelectModelChannelForModel(modelName, r.Header.Get("X-Model-Channel-ID"), true)
 	if err != nil {
 		log.Printf("AI proxy select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
@@ -123,6 +115,9 @@ func proxyAIGetRequest(w http.ResponseWriter, r *http.Request, path string) {
 }
 
 func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	startedAt := time.Now()
 	body, contentType, modelName, err := readAIRequest(r)
 	if err != nil {
@@ -135,22 +130,18 @@ func proxyAIRequest(w http.ResponseWriter, r *http.Request, path string) {
 		Fail(w, "未登录或权限不足")
 		return
 	}
-	channel, userChannelID, err := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader), true)
+	channel, err := service.SelectModelChannelForModel(modelName, r.Header.Get("X-Model-Channel-ID"), true)
 	if err != nil {
 		log.Printf("AI proxy select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
-	credits := 0.0
-	if userChannelID == "" {
-		credits, err = service.ModelCost(modelName)
-		if err != nil {
-			log.Printf("AI proxy read model cost failed: model=%s err=%v", modelName, err)
-			Fail(w, "AI 接口请求失败")
-			return
-		}
-		credits *= float64(readAIRequestCount(body, contentType, false))
+	credits, err := service.ModelCost(modelName)
+	if err != nil {
+		Fail(w, "AI 接口请求失败")
+		return
 	}
+	credits *= float64(readAIRequestCount(body, contentType, false))
 	if serveParameterTranslation(w, r, body, path, channel, user, credits, startedAt) {
 		return
 	}
@@ -431,6 +422,9 @@ func readAIRequest(r *http.Request) ([]byte, string, string, error) {
 	contentType := r.Header.Get("Content-Type")
 	body, err := io.ReadAll(r.Body)
 	if err != nil {
+		return nil, "", "", err
+	}
+	if err := rejectModelConnectionOverrides(body, contentType); err != nil {
 		return nil, "", "", err
 	}
 	modelName := ""

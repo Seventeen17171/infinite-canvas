@@ -4,11 +4,11 @@ import (
 	"bytes"
 	"encoding/json"
 	"errors"
+	"github.com/tigerowo/infinite-canvas/model"
+	"github.com/tigerowo/infinite-canvas/service"
 	"io"
 	"net/http"
-	"net/http/httptest"
 	"reflect"
-	"strings"
 	"testing"
 )
 
@@ -17,7 +17,7 @@ import (
 func TestModelProtocolRequestGoldens(t *testing.T) {
 	blockProtocolNetwork(t)
 	tests := []struct {
-		name, protocol, model, endpoint, url, body, want, uploads string
+		name, protocol, model, endpoint, url, body, want string
 	}{
 		{
 			name: "ark seedance", protocol: "ark", model: "doubao-seedance-2.0",
@@ -86,17 +86,15 @@ func TestModelProtocolRequestGoldens(t *testing.T) {
 		},
 		{
 			name: "kie upload metadata", protocol: "kie", model: "bytedance/seedance-2", endpoint: "/videos",
-			url:     "https://upstream.invalid/v1/jobs/createTask",
-			body:    `{"prompt":"scene","input_reference[]":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"],"video_reference[]":["https://direct-reference.invalid/run/video/0"],"audio_reference[]":["https://direct-reference.invalid/run/audio/0"]}`,
-			want:    `{"model":"bytedance/seedance-2","input":{"prompt":"scene","reference_image_urls":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"],"reference_video_urls":["https://direct-reference.invalid/run/video/0"],"reference_audio_urls":["https://direct-reference.invalid/run/audio/0"],"return_last_frame":false}}`,
-			uploads: `{"image":{"url":"https://kieai.redpandaai.co/api/file-stream-upload","fileField":"file","fileNameField":"fileName","extraFields":{"uploadPath":"images/user-uploads"},"responsePaths":["data.downloadUrl","data.fileUrl","data.url"]},"video":{"url":"https://kieai.redpandaai.co/api/file-stream-upload","fileField":"file","fileNameField":"fileName","extraFields":{"uploadPath":"videos/user-uploads"},"responsePaths":["data.downloadUrl","data.fileUrl","data.url"]},"audio":{"url":"https://kieai.redpandaai.co/api/file-stream-upload","fileField":"file","fileNameField":"fileName","extraFields":{"uploadPath":"audios/user-uploads"},"responsePaths":["data.downloadUrl","data.fileUrl","data.url"]}}`,
+			url:  "https://upstream.invalid/v1/jobs/createTask",
+			body: `{"prompt":"scene","input_reference[]":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"],"video_reference[]":["https://direct-reference.invalid/run/video/0"],"audio_reference[]":["https://direct-reference.invalid/run/audio/0"]}`,
+			want: `{"model":"bytedance/seedance-2","input":{"prompt":"scene","reference_image_urls":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"],"reference_video_urls":["https://direct-reference.invalid/run/video/0"],"reference_audio_urls":["https://direct-reference.invalid/run/audio/0"],"return_last_frame":false}}`,
 		},
 		{
 			name: "apimart upload metadata", protocol: "apimart", model: "gpt-image-2-apimart", endpoint: "/images/edits",
-			url:     "https://upstream.invalid/v1/images/generations",
-			body:    `{"prompt":"scene","image":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"]}`,
-			want:    `{"model":"gpt-image-2-apimart","prompt":"scene","image_urls":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"]}`,
-			uploads: `{"image":{"url":"https://upstream.invalid/v1/uploads/images","fileField":"file","responsePaths":["url"]}}`,
+			url:  "https://upstream.invalid/v1/images/generations",
+			body: `{"prompt":"scene","image":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"]}`,
+			want: `{"model":"gpt-image-2-apimart","prompt":"scene","image_urls":["https://direct-reference.invalid/run/image/0","https://direct-reference.invalid/run/image/1"]}`,
 		},
 	}
 	for _, test := range tests {
@@ -105,91 +103,28 @@ func TestModelProtocolRequestGoldens(t *testing.T) {
 			if endpoint == "" {
 				endpoint = "/videos"
 			}
-			input := directAIRequestInput{
-				Channel: directAIChannelInput{Protocol: test.protocol, BaseURL: "https://upstream.invalid"},
-				Model:   test.model, Endpoint: endpoint, Body: protocolJSON(t, test.body),
+			channel := model.ModelChannel{Protocol: test.protocol, BaseURL: "https://upstream.invalid"}
+			body := protocolJSON(t, test.body).(map[string]any)
+			body["model"] = test.model
+			encoded, _ := json.Marshal(body)
+			mode := aiProtocolProxyRequest
+			if endpoint == "/videos" {
+				mode = aiProtocolVideoRequest
 			}
-			plan, err := prepareDirectAIRequest(input)
+			plan, provider, err := prepareAIProtocolRequest(aiProtocolRequest{mode: mode, channel: channel, modelName: test.model, endpoint: endpoint, path: resolveAIProxyPath(channel, test.model, endpoint), body: encoded, contentType: "application/json"})
 			if err != nil {
 				t.Fatal(err)
 			}
-			if plan.Provider != test.protocol || plan.ContentType != "application/json" {
-				t.Fatalf("unexpected direct plan: %#v", plan)
+			if provider != test.protocol || plan.contentType != "application/json" {
+				t.Fatalf("unexpected proxy plan: %#v", plan)
 			}
-			if test.url != "" && plan.URL != test.url {
-				t.Fatalf("got URL %q, want %q", plan.URL, test.url)
+			if test.url != "" && service.BuildModelChannelURL(channel, plan.path) != test.url {
+				t.Fatalf("unexpected proxy URL")
 			}
 			if test.want != "" {
-				assertProtocolJSONValue(t, plan.Body, test.want)
+				assertProtocolJSONValue(t, protocolJSON(t, string(plan.body)), test.want)
 			}
-			if test.uploads != "" {
-				assertProtocolJSONValue(t, plan.Uploads, test.uploads)
-			} else if len(plan.Uploads) != 0 {
-				t.Fatalf("unexpected upload instructions: %#v", plan.Uploads)
-			}
-			assertProtocolJSONValue(t, input.Body, test.body)
-		})
-	}
-}
 
-func TestModelProtocolDirectSecurityContract(t *testing.T) {
-	blockProtocolNetwork(t)
-	tests := []struct {
-		name, protocol, baseURL, model, endpoint string
-		body                                     any
-		want                                     string
-	}{
-		{"missing model first", "kie", "bad", "", "/bad", nil, "缺少模型名称"},
-		{"unsupported endpoint", "kie", "bad", "model", "/audio/speech", nil, "当前接口不支持本地参数转译"},
-		{"invalid base", "kie", "ftp://api.example", "model", "/videos", nil, "渠道地址格式错误"},
-		{"nested key", "kie", "", "model", "", map[string]any{"input": []any{map[string]any{" API_KEY ": "secret"}}}, "参数转译请求不能包含 API Key"},
-		{"nested data URL", "kie", "", "model", "", map[string]any{"input": []any{" DATA:image/png;base64,AAAA "}}, "参考文件不能传给参数转译接口"},
-		{"nested blob URL", "kie", "", "model", "", map[string]any{"input": []any{"blob:https://local.invalid/id"}}, "参考文件不能传给参数转译接口"},
-		{"unsupported protocol", "openai", "", "model", "", map[string]any{"prompt": "scene"}, "当前渠道不支持本地复用后端转译"},
-		{"kie required input", "kie", "", "kling-3.0-omni/image-to-video", "", map[string]any{"prompt": "scene"}, "KIE required input missing: image_urls"},
-		{"apimart required input", "apimart", "", "kling-v2-6-motion-control", "", map[string]any{"prompt": "scene"}, "motion-control 模型缺少参考图和参考视频"},
-		{"apimart video marker", "apimart", "", "doubao-seedance-2", "", map[string]any{"video_reference": []any{"https://direct-reference.invalid/run/video/0"}}, "APIMart 本地视频和音频参考暂不支持直传，请使用公网媒体地址"},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			baseURL, endpoint := test.baseURL, test.endpoint
-			if baseURL == "" {
-				baseURL = "https://upstream.invalid"
-			}
-			if endpoint == "" {
-				endpoint = "/videos"
-			}
-			_, err := prepareDirectAIRequest(directAIRequestInput{
-				Channel: directAIChannelInput{Protocol: test.protocol, BaseURL: baseURL},
-				Model:   test.model, Endpoint: endpoint, Body: test.body,
-			})
-			if err == nil || err.Error() != test.want {
-				t.Fatalf("got error %v, want %q", err, test.want)
-			}
-		})
-	}
-}
-
-func TestModelProtocolDirectHTTPEnvelope(t *testing.T) {
-	blockProtocolNetwork(t)
-	tests := []struct {
-		name, body, want string
-	}{
-		{"anonymous success", `{"channel":{"protocol":"kie","baseUrl":"https://upstream.invalid"},"model":"future-model","endpoint":"/videos","body":{"prompt":"scene"}}`, `{"code":0,"data":{"provider":"kie","url":"https://upstream.invalid/v1/jobs/createTask","contentType":"application/json","body":{"model":"future-model","input":{"prompt":"scene"}}},"msg":"ok"}`},
-		{"empty", "", `{"code":1,"data":null,"msg":"请求参数不能为空"}`},
-		{"invalid JSON", "{", `{"code":1,"data":null,"msg":"请求参数格式错误"}`},
-		{"missing model", "{}", `{"code":1,"data":null,"msg":"缺少模型名称"}`},
-		{"oversized", `{"body":{"prompt":"` + strings.Repeat("x", 1<<20) + `"}}`, `{"code":1,"data":null,"msg":"请求参数格式错误"}`},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			request := httptest.NewRequest(http.MethodPost, "/api/ai/direct-request", strings.NewReader(test.body))
-			recorder := httptest.NewRecorder()
-			PrepareDirectAIRequest(recorder, request)
-			if recorder.Code != http.StatusOK || recorder.Header().Get("Content-Type") != "application/json" {
-				t.Fatalf("HTTP contract changed: status %d, headers %v", recorder.Code, recorder.Header())
-			}
-			assertProtocolJSONValue(t, protocolJSON(t, recorder.Body.String()), test.want)
 		})
 	}
 }

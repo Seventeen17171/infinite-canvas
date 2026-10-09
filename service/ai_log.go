@@ -15,11 +15,11 @@ import (
 	"sync"
 	"time"
 
+	"github.com/google/uuid"
+	"github.com/robfig/cron/v3"
 	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/google/uuid"
-	"github.com/robfig/cron/v3"
 )
 
 const (
@@ -42,20 +42,20 @@ var (
 )
 
 type AICallLogInput struct {
-	UserID          string `json:"userId"`
-	UserDisplayName string `json:"userDisplayName"`
-	Endpoint        string `json:"endpoint"`
-	Method          string `json:"method"`
-	Model           string `json:"model"`
-	ChannelID       string `json:"channelId"`
-	ChannelName     string `json:"channelName"`
-	Status          int    `json:"status"`
-	DurationMs      int64  `json:"durationMs"`
+	UserID          string  `json:"userId"`
+	UserDisplayName string  `json:"userDisplayName"`
+	Endpoint        string  `json:"endpoint"`
+	Method          string  `json:"method"`
+	Model           string  `json:"model"`
+	ChannelID       string  `json:"channelId"`
+	ChannelName     string  `json:"channelName"`
+	Status          int     `json:"status"`
+	DurationMs      int64   `json:"durationMs"`
 	Credits         float64 `json:"credits"`
-	RequestBody     string `json:"requestBody"`
-	ResponseBody    string `json:"responseBody"`
-	Error           string `json:"error"`
-	OutcomeKnown    bool   `json:"-"`
+	RequestBody     string  `json:"requestBody"`
+	ResponseBody    string  `json:"responseBody"`
+	Error           string  `json:"error"`
+	OutcomeKnown    bool    `json:"-"`
 }
 
 func SaveAICallLog(input AICallLogInput) {
@@ -196,21 +196,8 @@ func normalizeAILogCleanupSetting(setting model.AILogCleanupSetting) model.AILog
 
 func normalizeAILogSetting(setting model.AILogSetting) model.AILogSetting {
 	setting.Cleanup = normalizeAILogCleanupSetting(setting.Cleanup)
-	if setting.LocalDirectReportEnabled == nil {
-		enabled := false
-		setting.LocalDirectReportEnabled = &enabled
-	}
-	return setting
-}
 
-func LocalDirectAILogEnabled() bool {
-	settings, err := repository.GetSettings()
-	if err != nil {
-		log.Printf("load local direct ai log setting failed err=%v", err)
-		return false
-	}
-	setting := normalizeAILogSetting(settings.Private.AILog)
-	return setting.LocalDirectReportEnabled != nil && *setting.LocalDirectReportEnabled
+	return setting
 }
 
 func appendAICallLog(item model.AICallLog) error {

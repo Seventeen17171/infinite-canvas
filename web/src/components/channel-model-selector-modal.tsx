@@ -17,7 +17,7 @@ const capabilityOptions: Array<{ label: string; value: ModelCapability }> = [
 ];
 
 type ChannelModelSelectorModalProps = {
-    channel?: { name?: string; protocol?: string; baseUrl?: string; modelCapabilities?: ModelCapabilities };
+    channel?: { id?: string; name?: string; protocol?: string; baseUrl?: string; modelCapabilities?: ModelCapabilities };
     parameterTranslation?: string;
     models: string[];
     sourceModels?: string[];

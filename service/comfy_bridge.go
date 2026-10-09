@@ -63,6 +63,9 @@ type ComfyBridgeInspectResult struct {
 }
 
 func RegisterComfyBridge(scope, ownerID, name string) (ComfyBridgeRegistration, error) {
+	if scope != "system" || ownerID != "system" {
+		return ComfyBridgeRegistration{}, errors.New("仅允许后台统一管理 Bridge")
+	}
 	name = strings.TrimSpace(name)
 	if name == "" || len(name) > 80 {
 		return ComfyBridgeRegistration{}, errors.New("请填写 1～80 字的 Bridge 名称")
@@ -118,7 +121,7 @@ func AuthenticateComfyBridge(token string) (model.ComfyBridge, error) {
 		return model.ComfyBridge{}, errors.New("Bridge Token 无效")
 	}
 	bridge, err := repository.GetComfyBridgeByTokenHash(comfyBridgeTokenHash(token))
-	if err != nil || !bridge.Enabled {
+	if err != nil || !bridge.Enabled || bridge.OwnerScope != "system" || bridge.OwnerID != "system" {
 		return model.ComfyBridge{}, errors.New("Bridge Token 无效")
 	}
 	return bridge, nil

@@ -173,7 +173,7 @@ func readAutoDLMetadata(baseURL string, path string, body []byte) (json.RawMessa
 	return root.Data, nil
 }
 
-// 账号代理与直连请求规划共用字段映射；范围、默认值和枚举只读上游规则。
+// 后台渠道的请求字段映射；范围、默认值和枚举只读上游规则。
 func TranslateAutoDLRequest(baseURL string, modelName string, input map[string]any) ([]byte, error) {
 	workflow, err := AutoDLWorkflowDetail(baseURL, modelName)
 	if err != nil {

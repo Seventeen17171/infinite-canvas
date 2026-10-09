@@ -26,7 +26,7 @@ import { deleteVideoGenerationLogs, fetchVideoGenerationLogs, saveVideoGeneratio
 import { createVideoGenerationTask, deleteVideoGenerationTask, listVideoGenerationTasks, pollVideoGenerationTaskStatus, VIDEO_POLL_INTERVAL_MS, VideoRequestError, type VideoResponse } from "@/services/api/video";
 import { comfyOutputStorageKey, getWorkflowTask, isRetryableWorkflowError, submitWorkflowTask, workflowMediaSource } from "@/services/api/workflow-generation";
 import { useAssetStore } from "@/stores/use-asset-store";
-import { channelProtocolForConfig, normalizeLocalChannels, useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
+import { channelProtocolForConfig, useConfigStore, useEffectiveConfig, type AiConfig, type VideoElementItem, type VideoElementReference } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { useUserStore } from "@/stores/use-user-store";
 import type { ReferenceImage } from "@/types/image";
@@ -98,7 +98,7 @@ type GenerationLog = {
     lastPolledAt?: number;
 };
 
-type GenerationLogConfig = Pick<AiConfig, "channelMode" | "activeChannelId" | "videoChannelId" | "model" | "videoModel" | "size" | "vquality" | "videoSeconds" | "videoMode" | "videoNegativePrompt" | "videoMultiShot" | "videoShotType" | "videoMultiPrompt" | "videoElementList" | "videoGenerateAudio" | "videoWatermark" | "videoCharacterOrientation">;
+type GenerationLogConfig = Pick<AiConfig, "activeChannelId" | "videoChannelId" | "model" | "videoModel" | "size" | "vquality" | "videoSeconds" | "videoMode" | "videoNegativePrompt" | "videoMultiShot" | "videoShotType" | "videoMultiPrompt" | "videoElementList" | "videoGenerateAudio" | "videoWatermark" | "videoCharacterOrientation">;
 
 type UpdateAiConfig = <K extends keyof AiConfig>(key: K, value: AiConfig[K]) => void;
 type WorkbenchLayout = "side" | "bottom";
@@ -173,7 +173,7 @@ export default function VideoPage() {
     const referenceImageLimit = klingOmni === "text-to-video" ? 0 : klingOmni === "image-to-video" ? 2 : klingOmni === "transformation" ? 4 : isKlingWorkbench && klingOmni !== "reference-to-video" ? 2 : referenceLimits.images;
     const videoReferenceLimit = klingAcceptsVideoReferences ? 1 : referenceLimits.videos;
     const pendingLogCount = logs.filter((log) => log.status === "生成中" && log.task && !log.video).length;
-    const usesBackendVideoTasks = (value: AiConfig) => value.channelMode === "remote" || (value.channelMode === "local" && Boolean(token));
+    const usesBackendVideoTasks = () => Boolean(token);
 
     useEffect(() => {
         if (autodl && autodlError) message.error(autodlError.message);
@@ -194,7 +194,7 @@ export default function VideoPage() {
             const taskId = videoLogTaskId(log);
             if (!taskId || (!log.providerWorkflowRef && !isAiConfigReady(resumeConfig, log.model))) return;
             if (log.providerWorkflowRef && !context.token) return;
-            if (isLocalClientVideoLog(log) && !usesBackendVideoTasks(resumeConfig)) return;
+            if (isLocalClientVideoLog(log) && !usesBackendVideoTasks()) return;
             void pollPendingLogOnce(log, resumeConfig, context);
         });
     };
@@ -958,7 +958,7 @@ export default function VideoPage() {
 
     const deleteBackendVideoTasks = async (items: GenerationLog[]) => {
         const config = effectiveConfigRef.current;
-        if (!token || !usesBackendVideoTasks(config)) return;
+        if (!token || !usesBackendVideoTasks()) return;
         await Promise.all(items.filter((item) => item.task && !isLocalClientVideoTask(item.task)).map((item) => deleteVideoGenerationTask(config, item.task).catch(() => undefined)));
     };
 
@@ -977,7 +977,7 @@ export default function VideoPage() {
 
     const syncBackendVideoTasks = async (baseLogs?: GenerationLog[]) => {
         const config = effectiveConfigRef.current;
-        if (!token || !usesBackendVideoTasks(config)) return baseLogs || logsRef.current;
+        if (!token || !usesBackendVideoTasks()) return baseLogs || logsRef.current;
         try {
             const tasks = await listVideoGenerationTasks(config);
             const recoverableTasks = tasks.filter(isRecoverableBackendVideoTask);
@@ -2177,7 +2177,6 @@ function createResultFromLog(log: GenerationLog, status: GenerationResult["statu
 
 function buildDisplayConfig(config: AiConfig, model: string): GenerationLogConfig {
     return {
-        channelMode: config.channelMode,
         activeChannelId: config.activeChannelId,
         videoChannelId: config.videoChannelId,
         model: config.model,
@@ -2793,7 +2792,6 @@ function ReferenceOrderButtons({ index, total, onMove }: { index: number; total:
 function normalizeLogConfig(log: Partial<GenerationLog>): GenerationLogConfig {
     const taskChannelId = videoTaskChannelId(log.task);
     return {
-        channelMode: log.config?.channelMode || "local",
         activeChannelId: taskChannelId || log.config?.activeChannelId || log.config?.videoChannelId || "",
         videoChannelId: taskChannelId || log.config?.videoChannelId || log.config?.activeChannelId || "",
         model: log.config?.model || log.model || "",
@@ -2815,7 +2813,6 @@ function normalizeLogConfig(log: Partial<GenerationLog>): GenerationLogConfig {
 
 function buildLog({ prompt, model, config, references, firstFrame, lastFrame, videoReferences, audioReferences, taskCount, durationMs, status, task, video, error, errorDetail, lastPolledAt, providerWorkflowRef }: { prompt: string; model: string; config: AiConfig; references: ReferenceImage[]; firstFrame?: ReferenceImage | null; lastFrame?: ReferenceImage | null; videoReferences: ReferenceVideo[]; audioReferences: ReferenceAudio[]; taskCount?: number; durationMs: number; status: GenerationLog["status"]; task?: VideoResponse; video?: GeneratedVideo; error?: string; errorDetail?: string; lastPolledAt?: number; providerWorkflowRef?: WorkflowRef }): GenerationLog {
     const logConfig = {
-        channelMode: config.channelMode,
         activeChannelId: config.activeChannelId,
         videoChannelId: config.videoChannelId,
         model: config.model,
@@ -2896,13 +2893,11 @@ function buildVideoConfig(config: AiConfig, model: string): AiConfig {
 }
 
 function videoTaskChannelId(task?: VideoResponse | null) {
-    return task?.userChannelId || task?.channelId || "";
+    return task?.channelId || "";
 }
 
 function resolveVideoChannelId(config: AiConfig, model: string, ...preferredIds: Array<string | undefined>) {
-    const channels = config.channelMode === "remote"
-        ? config.publicChannels.map((channel) => ({ id: channel.id || "", models: channel.models || [] }))
-        : normalizeLocalChannels(config).map((channel) => ({ id: channel.id, models: channel.models }));
+    const channels = config.publicChannels.filter((channel) => channel.enabled !== false).map((channel) => ({ id: channel.id || "", models: channel.models || [] }));
     for (const id of preferredIds) {
         const channelId = (id || "").trim();
         if (channelId && channels.some((channel) => channel.id === channelId && channel.models.includes(model))) return channelId;
@@ -2947,7 +2942,7 @@ function isKIEKlingModelConfig(config: AiConfig, model: string, key: string) {
 
 function videoChannelProtocol(config: AiConfig, model: string) {
     const channelId = resolveVideoChannelId(config, model, config.videoChannelId, config.activeChannelId);
-    const channels = config.channelMode === "remote" ? config.publicChannels : normalizeLocalChannels(config);
+    const channels = config.publicChannels.filter((channel) => channel.enabled !== false);
     const channel = channels.find((item) => (item.id || "") === channelId && (item.models || []).includes(model)) || channels.find((item) => (item.models || []).includes(model)) || channels.find((item) => (item.id || "") === channelId);
     return channel?.protocol || "openai";
 }

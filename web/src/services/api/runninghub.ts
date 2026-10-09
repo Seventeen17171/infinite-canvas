@@ -11,8 +11,6 @@ export type RunningHubInspectInput = {
     capability: WorkflowCapability;
 };
 
-export function inspectRunningHub(token: string, input: RunningHubInspectInput, admin?: { index?: number; channel: AdminModelChannel }) {
-    return admin
-        ? apiPost<WorkflowEntry>("/api/admin/workflow-providers/runninghub/inspect", { ...admin, input }, token)
-        : apiPost<WorkflowEntry>("/api/v1/workflow-providers/runninghub/inspect", input, token);
+export function inspectRunningHub(token: string, input: RunningHubInspectInput, admin: { index?: number; channel: AdminModelChannel }) {
+    return apiPost<WorkflowEntry>("/api/admin/workflow-providers/runninghub/inspect", { ...admin, input }, token);
 }

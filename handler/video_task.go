@@ -8,6 +8,7 @@ import (
 	"io"
 	"log"
 	"net/http"
+	"net/url"
 	"strings"
 	"time"
 
@@ -54,6 +55,9 @@ func DeleteUserVideoTask(w http.ResponseWriter, r *http.Request, id string) {
 }
 
 func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	startedAt := time.Now()
 	body, contentType, modelName, err := readAIRequest(r)
 	if err != nil {
@@ -66,22 +70,18 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		Fail(w, "未登录或权限不足")
 		return
 	}
-	channel, userChannelID, err := selectAIRequestChannel(user, modelName, r.Header.Get("X-Model-Channel-ID"), r.Header.Get(userModelChannelHeader), true)
+	channel, err := service.SelectModelChannelForModel(modelName, r.Header.Get("X-Model-Channel-ID"), true)
 	if err != nil {
 		log.Printf("AI video select channel failed: model=%s err=%v", modelName, err)
 		failAIChannelSelect(w, err, "AI 接口请求失败")
 		return
 	}
-	credits := 0.0
-	if userChannelID == "" {
-		credits, err = service.ModelCost(modelName)
-		if err != nil {
-			log.Printf("AI video read model cost failed: model=%s err=%v", modelName, err)
-			Fail(w, "AI 接口请求失败")
-			return
-		}
-		credits *= float64(readAIRequestCount(body, contentType, true))
+	credits, err := service.ModelCost(modelName)
+	if err != nil {
+		Fail(w, "AI 接口请求失败")
+		return
 	}
+	credits *= float64(readAIRequestCount(body, contentType, true))
 	if serveParameterTranslationVideo(w, r, body, channel, user, credits, startedAt) {
 		return
 	}
@@ -172,7 +172,6 @@ func proxyAIVideoTaskRequest(w http.ResponseWriter, r *http.Request) {
 		UserDisplayName: firstNonEmpty(user.DisplayName, user.Username),
 		Model:           modelName,
 		ChannelID:       channel.ID,
-		UserChannelID:   userChannelID,
 		ChannelName:     channel.Name,
 		Source:          readVideoTaskSource(r),
 		SourceID:        readVideoTaskSourceID(r),
@@ -219,75 +218,94 @@ func isClientVideoTaskID(id string) bool {
 	return strings.HasPrefix(strings.TrimSpace(id), "client_video_task_")
 }
 
-func serveAIVideoTask(w http.ResponseWriter, r *http.Request, id string) bool {
+// Every successful video submission is stored before it is returned to the
+// browser. Unknown IDs must never fall back to a provider with the current key.
+func ownedVideoTask(w http.ResponseWriter, r *http.Request, id string) (model.VideoTask, bool) {
 	user, ok := service.UserFromContext(r.Context())
 	if !ok {
-		return false
-	}
-	task, found, err := service.GetUserVideoTask(user.ID, id)
-	if err != nil {
-		log.Printf("read video task failed: id=%s user=%s err=%v", id, user.ID, err)
-		Fail(w, "AI 接口请求失败")
-		return true
-	}
-	if !found {
-		return false
-	}
-	OK(w, service.VideoTaskResponse(task))
-	return true
-}
-
-func serveGeminiVideoTaskContent(w http.ResponseWriter, r *http.Request, id string) bool {
-	user, ok := service.UserFromContext(r.Context())
-	if !ok {
-		return false
+		FailWithStatus(w, http.StatusUnauthorized, "请先登录")
+		return model.VideoTask{}, false
 	}
 	task, found, err := service.GetUserVideoTask(user.ID, strings.TrimSpace(id))
-	if err != nil || !found {
-		return false
+	if err != nil {
+		FailWithStatus(w, http.StatusInternalServerError, "查询视频任务失败")
+		return model.VideoTask{}, false
 	}
-	var channel model.ModelChannel
+	if !found {
+		FailWithStatus(w, http.StatusNotFound, "视频任务不存在或无权访问")
+		return model.VideoTask{}, false
+	}
 	if strings.TrimSpace(task.UserChannelID) != "" {
-		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, task.Model, task.UserChannelID)
+		Fail(w, "个人模型渠道已停用，历史任务无法继续调用")
+		return model.VideoTask{}, false
+	}
+	return task, true
+}
+
+func serveVideoTaskContent(w http.ResponseWriter, r *http.Request, task model.VideoTask) {
+	if strings.TrimSpace(task.ChannelID) == "" {
+		Fail(w, "视频任务缺少后台渠道信息")
+		return
+	}
+	// Ignore client model/channel hints: content always belongs to the saved task.
+	channel, err := service.SelectModelChannelForModel(task.Model, task.ChannelID, false)
+	if err != nil {
+		failAIChannelSelect(w, err, "视频任务的后台渠道不可用")
+		return
+	}
+	target := ""
+	if service.IsGeminiChannel(channel) {
+		target = strings.TrimSpace(task.VideoURL)
+		if target == "" {
+			Fail(w, "Gemini Veo 任务完成但没有返回视频地址")
+			return
+		}
 	} else {
-		channel, err = service.SelectModelChannelForModel(task.Model, task.ChannelID, false)
+		upstreamID := firstNonEmpty(task.UpstreamTaskID, task.UpstreamVideoID)
+		if strings.TrimSpace(upstreamID) == "" {
+			Fail(w, "视频任务缺少上游任务 ID")
+			return
+		}
+		path := resolveAIProxyPath(channel, task.Model, "/videos/"+url.PathEscape(upstreamID)+"/content")
+		target = resolveAIProxyURL(channel, task.Model, path)
 	}
-	if err != nil || !service.IsGeminiChannel(channel) {
-		return false
-	}
-	if strings.TrimSpace(task.VideoURL) == "" {
-		Fail(w, "Gemini Veo 任务完成但没有返回视频地址")
-		return true
-	}
-	request, err := http.NewRequest(http.MethodGet, task.VideoURL, nil)
+	request, err := http.NewRequestWithContext(r.Context(), http.MethodGet, target, nil)
 	if err != nil {
 		Fail(w, "视频内容下载失败")
-		return true
+		return
 	}
 	service.SetModelChannelAuthHeader(request, channel)
+	logContext := aiLogContext{StartedAt: time.Now(), Endpoint: "/videos/" + task.ID + "/content", Method: http.MethodGet, Model: task.Model, Channel: channel, UserID: task.UserID, UserDisplayName: task.UserDisplayName}
 	response, err := service.HTTPClientForChannel(channel).Do(request)
 	if err != nil {
-		Fail(w, "视频内容下载失败")
-		return true
+		saveAIProxyLog(logContext, 0, "", "视频内容请求失败")
+		FailWithStatus(w, http.StatusBadGateway, "视频内容下载失败")
+		return
 	}
 	defer response.Body.Close()
-	if response.StatusCode >= http.StatusBadRequest {
-		Fail(w, readUpstreamAIErrorMessage(nil, response.StatusCode))
-		return true
+	contentType := response.Header.Get("Content-Type")
+	if response.StatusCode >= http.StatusBadRequest || strings.Contains(strings.ToLower(contentType), "json") || strings.HasPrefix(strings.ToLower(contentType), "text/") {
+		saveAIProxyLog(logContext, response.StatusCode, "", "上游未返回视频内容")
+		FailWithStatus(w, http.StatusBadGateway, "上游未返回视频内容")
+		return
 	}
-	if contentType := response.Header.Get("Content-Type"); contentType != "" {
+	if contentType != "" {
 		w.Header().Set("Content-Type", contentType)
 	}
 	w.WriteHeader(response.StatusCode)
-	_, _ = io.Copy(w, response.Body)
-	return true
+	_, err = io.Copy(w, response.Body)
+	message := ""
+	if err != nil {
+		message = "视频内容传输中断"
+	}
+	saveAIProxyLog(logContext, response.StatusCode, "[video content]", message)
 }
 
 func pollVideoTaskFromUpstream(task model.VideoTask) (service.VideoTaskPollUpdate, error) {
 	var channel model.ModelChannel
 	var err error
 	if strings.TrimSpace(task.UserChannelID) != "" {
-		channel, err = service.SelectUserLocalModelChannelForModel(task.UserID, task.Model, task.UserChannelID)
+		err = errors.New("个人模型渠道已停用，历史任务无法继续调用")
 	} else {
 		channel, err = service.SelectModelChannelForModel(task.Model, task.ChannelID, false)
 	}

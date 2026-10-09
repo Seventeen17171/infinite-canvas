@@ -148,7 +148,7 @@ func StorageObjectInfo(id string) (model.StorageObject, error) {
 }
 
 // SaveCurrentUserStorageProvider 保存用户配置的存储提供商。
-func SaveCurrentUserStorageProvider(ctx context.Context, incoming UserStorageProviders) (UserConfigPayload, error) {
+func SaveCurrentUserStorageProvider(ctx context.Context, incoming UserStorageProviders, syncOptions ...*UserStorageSync) (UserConfigPayload, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok || user.ID == "" {
 		return UserConfigPayload{}, errors.New("请先登录")
@@ -181,6 +181,10 @@ func SaveCurrentUserStorageProvider(ctx context.Context, incoming UserStoragePro
 		config.CreatedAt = current
 	}
 	config.StorageProvider = string(raw)
+	if len(syncOptions) > 0 && syncOptions[0] != nil {
+		flags, _ := json.Marshal(map[string]bool{"syncStorageConfig": syncOptions[0].S3, "syncWebDAVStorageConfig": syncOptions[0].WebDAV})
+		config.ModelConfig = string(flags)
+	}
 	config.UpdatedAt = current
 	if _, err := repository.SaveUserConfig(config); err != nil {
 		return UserConfigPayload{}, err

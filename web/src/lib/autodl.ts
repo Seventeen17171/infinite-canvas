@@ -1,16 +1,13 @@
 import type { AutoDLWorkflow } from "@/services/api/autodl";
-import { channelIdForActiveModel, channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, modelChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
 
 export function isAutoDLConfig(config: AiConfig, model = config.model) {
     return channelProtocolForConfig({ ...config, model }) === "autodl";
 }
 
-export function autoDLBaseUrl(config: AiConfig, model = config.model) {
-    const active = { ...config, model };
-    const channel = active.channelMode === "remote"
-        ? active.publicChannels.find((item) => item.id === channelIdForActiveModel(active)) || active.publicChannels[0]
-        : localChannelForActiveModel(active);
-    return (channel?.baseUrl || "https://autodl.art").trim().replace(/\/+$/, "");
+export function autoDLChannelId(config: AiConfig, model = config.model) {
+    const channel = modelChannelForActiveModel({ ...config, model });
+    return channel?.protocol === "autodl" ? channel.id || "" : "";
 }
 
 export function getAutoDLCapabilities(workflow?: AutoDLWorkflow) {

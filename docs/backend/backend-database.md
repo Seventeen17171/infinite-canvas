@@ -109,12 +109,12 @@ description: 当前后端主要数据表与字段说明
 
 ### user_configs
 
-用户级配置和同步数据表。每个用户一行，模型配置、用户存储配置及其他同步数据继续保存在原有 text 字段中。
+用户级配置和同步数据表，每个用户一行。U01-C2 保留既有列和历史记录，但个人模型配置不再通过 API 返回、写入或用于渠道/工作流执行；存储配置和其他非模型数据继续使用现有字段。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `user_id` | string | 用户 ID，主键 |
-| `model_config` | 大文本 | 模型与偏好配置 JSON，个人工作流的 `workflowChannels` 完整条目也暂存在这里；S3/R2 和 WebDAV 的自动同步开关分别为 `syncStorageConfig`、`syncWebDAVStorageConfig` |
+| `model_config` | 大文本 | 历史模型配置列；当前读取仅提取 `syncStorageConfig`、`syncWebDAVStorageConfig` 两个存储同步布尔值。历史地址、Key、传参脚本和个人工作流不回传、不执行；保存存储同步选项时只写两项白名单标志 |
 | `storage_provider` | text | 用户存储配置 JSON，内部结构为 `{ "s3": {...}, "webdav": {...} }`，两类配置可保留但不能同时启用 |
 | `image_history` | text | 用户图片历史同步数据 |
 | `asset_data` | text | 用户素材同步数据 |
@@ -122,6 +122,8 @@ description: 当前后端主要数据表与字段说明
 | `updated_at` | string | 更新时间 |
 
 `storage_provider.s3` 保存 Endpoint、Region、Bucket、Access Key、Secret、公开域名和路径前缀；`storage_provider.webdav` 保存 WebDAV 地址、远程目录、用户名和密码/应用密码。自动同步开关不重复写入 Provider；后端下载和删除旧媒体时仍会读取已保存但已停用的 Provider。
+
+`GET /api/v1/user-config` 返回 `storageSync: { s3: boolean, webdav: boolean }`，不返回 `modelConfig`。`POST /api/v1/user-config/storage` 接收 `{ provider: { s3?, webdav? }, storageSync?: { s3: boolean, webdav: boolean } }`；省略同步选项时保留既有标志。个人模型写入路由 `/api/v1/user-config/model` 已撤销。未主动迁移或清理历史模型 JSON，个人记录不能恢复模型接入。
 
 ### storage_objects
 
@@ -311,13 +313,13 @@ S3/R2 与 WebDAV 共用的媒体文件索引表，不保存画布、素材列表
 
 ### comfy_bridges
 
-ComfyUI Bridge 设备表。每台可访问一处 ComfyUI 的独立程序注册一条设备；工作流配置仍保存在系统设置或用户模型配置 JSON 中，不在此表重复保存。
+ComfyUI Bridge 设备表。每台可访问一处 ComfyUI 的独立程序注册一条设备；当前工作流配置只从后台系统设置读取，不在此表重复保存。历史个人 Bridge 数据可保留，但个人注册、查询、执行与握手能力已撤销。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
 | `id` | string | Bridge ID，主键 |
-| `owner_scope` | string | `system` 或 `personal` |
-| `owner_id` | string | 系统设备为 `system`，个人设备为用户 ID |
+| `owner_scope` | string | 当前仅使用 `system`；历史 `personal` 记录不再授权执行 |
+| `owner_id` | string | 当前系统设备为 `system`；历史用户 ID 不授予个人设备能力 |
 | `name` | string | 设备显示名称 |
 | `token_hash` | string | 专用 Token 的 SHA-256 摘要，唯一索引；不保存明文 Token |
 | `enabled` | boolean | Token 有效标记；删除设备时整行移除 |
@@ -336,7 +338,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 | --- | --- | --- |
 | `id` | string | 请求 ID，主键 |
 | `bridge_id` | string | 目标 Bridge ID |
-| `owner_scope` | string | `system` 或 `personal` |
+| `owner_scope` | string | 当前仅使用 `system`；历史 `personal` 记录不再授权执行 |
 | `owner_id` | string | 系统或用户归属 ID |
 | `task_id` | string | 对应图片、视频或音频任务 ID；检查请求为空 |
 | `kind` | string | 输出用途：`image`、`video`、`audio`，或按需读取工作流的 `inspect_workflow` |
@@ -408,7 +410,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 | `defaultVideoModel` | string | 默认视频模型 |
 | `defaultTextModel` | string | 默认文本模型 |
 | `systemPrompt` | string | 系统提示词 |
-| `allowCustomChannel` | bool | 是否允许用户自定义渠道，默认允许，关闭后前端只提供走后端渠道的模式 |
+| `channels` | object[] | 后台开放渠道的选择元数据；不含 `baseUrl`、`apiKey`、私有脚本或完整工作流 |
 
 `modelCosts` 每项字段：
 
@@ -440,7 +442,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 | `baseUrl` | string | 渠道接口地址 |
 | `apiKey` | string | 渠道密钥 |
 | `models` | string[] | 渠道可用模型列表 |
-| `modelCapabilities` | object | 当前渠道手动修改过的模型分类，键为模型名称，值为 `image`、`video`、`text`、`audio`；未设置的模型沿用系统识别。公开渠道同时下发可用模型的分类，个人渠道随用户模型配置保存 |
+| `modelCapabilities` | object | 当前渠道手动修改过的模型分类，键为模型名称，值为 `image`、`video`、`text`、`audio`；未设置的模型沿用系统识别。公开渠道只下发可用模型分类，个人渠道配置不再使用 |
 | `weight` | number | 渠道权重，同一模型命中多个渠道时按权重随机 |
 | `enabled` | bool | 是否启用 |
 | `remark` | string | 备注 |
@@ -466,7 +468,7 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 
 后端请求模型时，先按模型名筛选启用且包含该模型的渠道，再按 `weight` 加权随机选择一个渠道。
 
-RunningHub/ComfyUI 不加入上述普通模型筛选：系统工作流公开列表为空时下发全部已启用条目，非空时只下发已启用且已勾选条目的名称、ID 和用途；不会公开密钥、Bridge Token、字段映射或完整工作流 JSON。个人工作流在 `user_configs.model_config.workflowChannels` 中按账号隔离。
+RunningHub/ComfyUI 不加入上述普通模型筛选：系统工作流公开列表为空时下发全部已启用条目，非空时只下发已启用且已勾选条目的名称、ID 和用途；不会公开密钥、Bridge Token、字段映射或完整工作流 JSON。历史 `user_configs.model_config.workflowChannels` 不再解析或执行；用户只能提交 `scope: "system"` 的后台工作流引用。
 
 ### credit_logs
 

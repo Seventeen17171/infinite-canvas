@@ -19,20 +19,20 @@ export type ComfyBridgeRegistration = { bridge: ComfyBridgeSummary; token: strin
 export type ComfyBridgeInspectInput = { bridgeId: string; workflowId: string; workflowJson?: Record<string, unknown>; capability: WorkflowCapability };
 export type ComfyBridgeInspectResult = { workflowJson: Record<string, unknown>; workflowGraph?: WorkflowGraphPreview; fields: WorkflowFieldMapping[] };
 
-const bridgePath = (admin: boolean) => admin ? "/api/admin/comfy-bridges" : "/api/v1/comfy-bridges";
+const bridgePath = "/api/admin/comfy-bridges";
 
-export function listComfyBridges(token: string, admin = false) {
-    return apiGet<ComfyBridgeSummary[]>(bridgePath(admin), undefined, token);
+export function listComfyBridges(token: string) {
+    return apiGet<ComfyBridgeSummary[]>(bridgePath, undefined, token);
 }
 
-export function createComfyBridge(token: string, name: string, admin = false) {
-    return apiPost<ComfyBridgeRegistration>(bridgePath(admin), { name }, token);
+export function createComfyBridge(token: string, name: string) {
+    return apiPost<ComfyBridgeRegistration>(bridgePath, { name }, token);
 }
 
-export function deleteComfyBridge(token: string, id: string, admin = false) {
-    return apiDelete<{ deleted: boolean }>(`${bridgePath(admin)}/${encodeURIComponent(id)}`, token);
+export function deleteComfyBridge(token: string, id: string) {
+    return apiDelete<{ deleted: boolean }>(`${bridgePath}/${encodeURIComponent(id)}`, token);
 }
 
-export function inspectComfyBridge(token: string, input: ComfyBridgeInspectInput, admin = false) {
-    return apiPost<ComfyBridgeInspectResult>(`${bridgePath(admin)}/inspect`, input, token);
+export function inspectComfyBridge(token: string, input: ComfyBridgeInspectInput) {
+    return apiPost<ComfyBridgeInspectResult>(`${bridgePath}/inspect`, input, token);
 }

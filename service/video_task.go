@@ -33,7 +33,6 @@ type VideoTaskCreateInput struct {
 	UserDisplayName              string
 	Model                        string
 	ChannelID                    string
-	UserChannelID                string
 	ChannelName                  string
 	WorkflowRef                  string
 	Source                       string
@@ -82,7 +81,6 @@ func CreateVideoTask(input VideoTaskCreateInput) (model.VideoTask, error) {
 		UserDisplayName:              strings.TrimSpace(input.UserDisplayName),
 		Model:                        strings.TrimSpace(input.Model),
 		ChannelID:                    strings.TrimSpace(input.ChannelID),
-		UserChannelID:                strings.TrimSpace(input.UserChannelID),
 		ChannelName:                  strings.TrimSpace(input.ChannelName),
 		WorkflowRef:                  input.WorkflowRef,
 		Source:                       normalizeVideoTaskSource(input.Source),

@@ -5,8 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 
 import type { TokenDanceOAuthState } from "@/lib/tokendance-oauth";
-import { fetchUserConfig, syncUserModelConfig } from "@/services/api/user-config";
-import { normalizeLocalChannels, useConfigStore } from "@/stores/use-config-store";
+import { fetchCurrentUser } from "@/services/api/auth";
 import { useUserStore } from "@/stores/use-user-store";
 
 export default function TokenDanceCallbackPage() {
@@ -30,16 +29,19 @@ export default function TokenDanceCallbackPage() {
                 if (!code || !flow || !raw) throw new Error("授权信息已失效，请重新登录");
 
                 const state = JSON.parse(raw) as TokenDanceOAuthState;
-                if (!state.verifier || (state.target !== "local" && state.target !== "admin")) {
+                if (!state.verifier || state.target !== "admin") {
                     throw new Error("授权信息不完整，请重新登录");
                 }
 
+                const accountToken = useUserStore.getState().token;
+                if (!accountToken || (await fetchCurrentUser(accountToken)).role !== "admin" || useUserStore.getState().token !== accountToken) throw new Error("仅管理员可以授权后台模型渠道");
+
                 const returnTo = typeof state.returnTo === "string"
                     ? state.returnTo.replace(/[\t\n\r]/g, "")
-                    : "/";
-                const safeReturnTo = returnTo.startsWith("/") && !returnTo.startsWith("//") && !returnTo.startsWith("/\\")
+                    : "/admin/settings";
+                const safeReturnTo = returnTo.startsWith("/admin/")
                     ? returnTo
-                    : "/";
+                    : "/admin/settings";
 
                 const response = await fetch("https://tokendance.space/portal/api/v1/auth/keys", {
                     method: "POST",
@@ -60,60 +62,25 @@ export default function TokenDanceCallbackPage() {
                     throw new Error(data.message || data.error || "TokenDance 授权失败");
                 }
 
+                if (useUserStore.getState().token !== accountToken) throw new Error("登录状态已变化，请重新授权");
                 const key = data.key.trim();
 
-                if (state.target === "admin") {
-                    if (!state.draft || typeof state.draft !== "object") {
-                        throw new Error("后台渠道信息不完整，请重新登录");
-                    }
-
-                    sessionStorage.setItem(`tokendance:oauth-result:${flow}`, JSON.stringify({
-                        key,
-                        draft: state.draft,
-                        editingChannelIndex: state.editingChannelIndex,
-                    }));
-                    sessionStorage.removeItem(storageKey);
-
-                    const returnUrl = new URL(safeReturnTo, window.location.origin);
-                    returnUrl.searchParams.set("tokendance_oauth", flow);
-                    router.replace(`${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`);
-                    return;
+                if (!state.draft || typeof state.draft !== "object") {
+                    throw new Error("后台渠道信息不完整，请重新登录");
                 }
 
-                if (!state.channelId) throw new Error("对应的 TokenDance 渠道不存在");
-
-                const store = useConfigStore.getState();
-                const channels = normalizeLocalChannels(store.config);
-                const target = channels.find((channel) =>
-                    channel.id === state.channelId && channel.protocol === "tokendance",
-                );
-                if (!target) throw new Error("对应的 TokenDance 渠道不存在");
-
-                const nextChannels = channels.map((channel) =>
-                    channel.id === state.channelId ? { ...channel, apiKey: key } : channel,
-                );
-                const nextConfig = {
-                    ...store.config,
-                    localChannels: nextChannels,
-                    ...(channels[0]?.id === state.channelId ? { apiKey: key } : {}),
-                };
-
-                const accountToken = useUserStore.getState().token;
-                if (accountToken) {
-                    const remote = await fetchUserConfig(accountToken);
-                    if (useUserStore.getState().token !== accountToken) {
-                        throw new Error("登录状态已变化，请重新登录");
-                    }
-                    await syncUserModelConfig(accountToken, nextConfig, remote.modelConfig?.workflowChannels);
-                }
-
-                store.updateConfig("localChannels", nextChannels);
-                if (channels[0]?.id === state.channelId) store.updateConfig("apiKey", key);
-
+                sessionStorage.setItem(`tokendance:oauth-result:${flow}`, JSON.stringify({
+                    key,
+                    draft: state.draft,
+                    editingChannelIndex: state.editingChannelIndex,
+                }));
                 sessionStorage.removeItem(storageKey);
-                message.success("TokenDance 登录成功，API Key 已填入");
-                store.openConfigDialog(false);
-                router.replace(safeReturnTo);
+
+                const returnUrl = new URL(safeReturnTo, window.location.origin);
+                returnUrl.searchParams.set("tokendance_oauth", flow);
+                router.replace(`${returnUrl.pathname}${returnUrl.search}${returnUrl.hash}`);
+                return;
+
             } catch (reason) {
                 setError(reason instanceof Error ? reason.message : "TokenDance 授权失败");
             }
@@ -127,7 +94,7 @@ export default function TokenDanceCallbackPage() {
                     status="error"
                     title="TokenDance 授权失败"
                     subTitle={error}
-                    extra={<Button href="/">返回首页</Button>}
+                    extra={<Button href="/admin/settings">返回后台</Button>}
                 />
             ) : (
                 <Spin size="large" tip="正在完成 TokenDance 授权……" />

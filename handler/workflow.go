@@ -40,9 +40,14 @@ func DeleteUserWorkflow(w http.ResponseWriter, r *http.Request, id string) {
 }
 
 func DraftUserWorkflow(w http.ResponseWriter, r *http.Request) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	var request service.WorkflowAgentDraftRequest
-	if err := json.NewDecoder(r.Body).Decode(&request); err != nil {
-		Fail(w, "工作流需求格式错误")
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 8<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&request); err != nil {
+		Fail(w, "工作流需求格式错误或包含已停用的模型接入参数")
 		return
 	}
 	result, err := service.DraftCreativeWorkflow(r.Context(), request)
@@ -60,25 +65,6 @@ func AdminAICallLogs(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	OK(w, list)
-}
-
-// ClientAICallLog 接收前端本地直连渠道的 AI 调用日志上报。
-func ClientAICallLog(w http.ResponseWriter, r *http.Request) {
-	user, ok := service.UserFromContext(r.Context())
-	if !ok || user.ID == "" {
-		Fail(w, "请先登录")
-		return
-	}
-	var request service.AICallLogInput
-	_ = json.NewDecoder(r.Body).Decode(&request)
-	if !service.LocalDirectAILogEnabled() {
-		OK(w, true)
-		return
-	}
-	request.UserID = user.ID
-	request.UserDisplayName = firstNonEmpty(user.DisplayName, user.Username)
-	service.SaveAICallLog(request)
-	OK(w, true)
 }
 
 func AdminDeleteAICallLogs(w http.ResponseWriter, r *http.Request) {

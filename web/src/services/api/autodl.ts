@@ -15,10 +15,12 @@ export type AutoDLWorkflow = {
     input_rules?: Record<string, AutoDLInputRule>;
 };
 
-export function fetchAutoDLWorkflows(baseUrl: string) {
-    return apiPost<AutoDLWorkflow[]>("/api/ai/autodl/workflows", { baseUrl });
+export async function fetchAutoDLWorkflows(token: string, channelId: string) {
+    if (!token || !channelId.trim()) throw new Error("请登录并选择后台已开放的 AutoDL 渠道");
+    return apiPost<AutoDLWorkflow[]>("/api/v1/model-channels/autodl/workflows", { channelId }, token);
 }
 
-export function fetchAutoDLWorkflow(baseUrl: string, workflowId: string) {
-    return apiPost<AutoDLWorkflow>("/api/ai/autodl/workflows", { baseUrl, workflowId });
+export async function fetchAutoDLWorkflow(token: string, channelId: string, workflowId: string) {
+    if (!token || !channelId.trim() || !workflowId.trim()) throw new Error("请登录并选择后台已开放的 AutoDL 模型");
+    return apiPost<AutoDLWorkflow>("/api/v1/model-channels/autodl/workflows", { channelId, workflowId }, token);
 }

@@ -6,28 +6,20 @@ import { usePathname } from "next/navigation";
 import { App } from "antd";
 
 import { fetchUserConfig } from "@/services/api/user-config";
-import { replaceWorkflowChannels } from "@/services/workflow-channel-storage";
 import { STORAGE_SYNC_FAILED_EVENT, defaultUserStorageProvider, defaultUserWebDAVStorageProvider, saveUserStorageProvider, saveUserWebDAVStorageProvider } from "@/services/image-storage";
-import { defaultConfig, useConfigStore, type AiConfig } from "@/stores/use-config-store";
+import { defaultConfig, useConfigStore } from "@/stores/use-config-store";
 import { useUserStore } from "@/stores/use-user-store";
-import { useChannelTranslationStore } from "@/stores/use-channel-translation-store";
 
 export function ClientRootInit({ children }: { children: ReactNode }) {
     const { message } = App.useApp();
-    const handledConfigParams = useRef(false);
     const pathname = usePathname();
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const hydrateUser = useUserStore((state) => state.hydrateUser);
     const loadPublicSettings = useConfigStore((state) => state.loadPublicSettings);
-    const publicSettings = useConfigStore((state) => state.publicSettings);
-    const channelMode = useConfigStore((state) => state.config.channelMode);
     const updateConfig = useConfigStore((state) => state.updateConfig);
-    const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const isLoginPage = pathname === "/login" || pathname === "/admin/login";
-    const isTokenDanceCallback = pathname === "/tokendance/callback";
     const isTeamPage = !pathname.startsWith("/admin");
-    const adminRemoteTokenRef = useRef("");
     const accountSessionRef = useRef({ token, userId: user?.id || "" });
 
     useEffect(() => {
@@ -39,111 +31,34 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         return () => window.removeEventListener(STORAGE_SYNC_FAILED_EVENT, onSyncFailed);
     }, [message]);
 
-    useEffect(() => {
-        void loadPublicSettings();
-    }, [loadPublicSettings]);
+    useEffect(() => { void loadPublicSettings(); }, [loadPublicSettings]);
+    useEffect(() => { if (!isLoginPage) void hydrateUser(); }, [hydrateUser, isLoginPage]);
+
+    useLayoutEffect(() => {
+        const previous = accountSessionRef.current;
+        const userId = user?.id || "";
+        if ((previous.token && !token) || (previous.userId && userId && previous.userId !== userId)) {
+            useConfigStore.setState({ config: defaultConfig, isConfigOpen: false });
+        }
+        accountSessionRef.current = { token, userId };
+    }, [token, user?.id]);
 
     useEffect(() => {
-        if (!isLoginPage) void hydrateUser();
-    }, [hydrateUser, isLoginPage]);
-
-	useEffect(() => {
-		if (isTeamPage || !token || adminRemoteTokenRef.current === token) return;
-		if (isTokenDanceCallback) {
-			adminRemoteTokenRef.current = token;
-			return;
-		}
-		if (user?.role !== "admin") return;
-		adminRemoteTokenRef.current = token;
-		if (channelMode !== "remote") updateConfig("channelMode", "remote");
-	}, [channelMode, isTeamPage, isTokenDanceCallback, token, updateConfig, user?.role]);
-
-	useLayoutEffect(() => {
-		if (isTeamPage) return;
-		const previous = accountSessionRef.current;
-		const userId = user?.id || "";
-		if ((previous.token && !token) || (previous.userId && userId && previous.userId !== userId)) {
-			useConfigStore.setState({ config: defaultConfig });
-		} else {
-			updateConfig("workflowSyncTouched", false);
-		}
-		accountSessionRef.current = { token, userId };
-	}, [isTeamPage, token, updateConfig, user?.id]);
-
-	useEffect(() => {
-        if (isTeamPage || isTokenDanceCallback || !token || !user?.id) return;
+        if (isTeamPage || !token || !user?.id) return;
         const accountToken = token;
         const accountId = user.id;
-        const translationRevision = useChannelTranslationStore.getState().revisions[accountId] || 0;
         let canceled = false;
-		void fetchUserConfig(accountToken)
-			.then(async (payload) => {
-				if (canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) return;
-				let workflowsReady = true;
-				const syncS3 = payload.modelConfig?.syncStorageConfig === true;
-                const syncWebDAV = payload.modelConfig?.syncWebDAVStorageConfig === true;
-                if (payload.modelConfig) {
-                    const { workflowChannels, channelTranslations, ...modelConfig } = payload.modelConfig;
-					await useChannelTranslationStore.getState().replace(accountId, channelTranslations || [], translationRevision);
-					if (canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) return;
-					if (workflowChannels !== undefined) {
-						try {
-							await replaceWorkflowChannels(accountId, workflowChannels);
-						} catch {
-							workflowsReady = false;
-						}
-					}
-                    if (canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) return;
-					Object.entries(modelConfig)
-						.forEach(([key, value]) => updateConfig(key as keyof AiConfig, value as never));
-				}
-				updateConfig("workflowSyncTouched", workflowsReady);
-				updateConfig("syncStorageConfig", syncS3);
-                updateConfig("syncWebDAVStorageConfig", syncWebDAV);
-                if (syncS3 && payload.storageProvider?.s3) {
-                    saveUserStorageProvider({
-                        ...defaultUserStorageProvider(),
-                        ...payload.storageProvider.s3,
-                        type: "s3",
-                    });
-                }
-                if (syncWebDAV && payload.storageProvider?.webdav) {
-                    saveUserWebDAVStorageProvider({
-                        ...defaultUserWebDAVStorageProvider(),
-                        ...payload.storageProvider.webdav,
-                        type: "webdav",
-                    });
-                }
-            })
-            .catch(() => {});
-        return () => {
-            canceled = true;
-        };
-    }, [isTeamPage, isTokenDanceCallback, token, updateConfig, user?.id]);
-
-    useEffect(() => {
-        if (isTeamPage || handledConfigParams.current) return;
-        const searchParams = new URLSearchParams(window.location.search);
-        const baseUrl = searchParams.get("baseUrl") || searchParams.get("baseurl");
-        const apiKey = searchParams.get("apiKey") || searchParams.get("apikey");
-        if (!baseUrl && !apiKey) return;
-        if (!publicSettings) return;
-        handledConfigParams.current = true;
-        searchParams.delete("baseUrl");
-        searchParams.delete("baseurl");
-        searchParams.delete("apiKey");
-        searchParams.delete("apikey");
-        window.history.replaceState(null, "", `${window.location.pathname}${searchParams.size ? `?${searchParams}` : ""}${window.location.hash}`);
-        if (!publicSettings.modelChannel.allowCustomChannel) {
-            openConfigDialog(false);
-            message.error("后台未允许用户自定义渠道，请联系管理员进行配置");
-            return;
-        }
-        updateConfig("channelMode", "local");
-        if (baseUrl) updateConfig("baseUrl", baseUrl);
-        if (apiKey) updateConfig("apiKey", apiKey);
-        openConfigDialog(false);
-    }, [isTeamPage, message, openConfigDialog, publicSettings, updateConfig]);
+        void fetchUserConfig(accountToken).then((payload) => {
+            if (canceled || useUserStore.getState().token !== accountToken || useUserStore.getState().user?.id !== accountId) return;
+            const syncS3 = payload.storageSync?.s3 === true;
+            const syncWebDAV = payload.storageSync?.webdav === true;
+            updateConfig("syncStorageConfig", syncS3);
+            updateConfig("syncWebDAVStorageConfig", syncWebDAV);
+            if (syncS3 && payload.storageProvider?.s3) saveUserStorageProvider({ ...defaultUserStorageProvider(), ...payload.storageProvider.s3, type: "s3" });
+            if (syncWebDAV && payload.storageProvider?.webdav) saveUserWebDAVStorageProvider({ ...defaultUserWebDAVStorageProvider(), ...payload.storageProvider.webdav, type: "webdav" });
+        }).catch(() => {});
+        return () => { canceled = true; };
+    }, [isTeamPage, token, updateConfig, user?.id]);
 
     return <>{children}</>;
 }

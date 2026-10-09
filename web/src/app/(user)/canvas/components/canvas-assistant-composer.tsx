@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, type ReactNode } from "react";
+import { useMemo } from "react";
 import { ArrowUp, Brain, FolderOpen, ImageIcon, Menu, Square, Upload, Video } from "lucide-react";
 import { Button, Dropdown } from "antd";
 
@@ -16,7 +16,6 @@ import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
 export type CanvasAssistantComposerProps = {
     prompt: string;
     isRunning: boolean;
-    codexControls?: ReactNode;
     references: CanvasAssistantReference[];
     availableReferences?: CanvasResourceReference[];
     pendingReferences?: CanvasResourceReference[];
@@ -34,7 +33,6 @@ export type CanvasAssistantComposerProps = {
 export function CanvasAssistantComposer({
     prompt,
     isRunning,
-    codexControls,
     references,
     availableReferences,
     pendingReferences,
@@ -93,7 +91,6 @@ export function CanvasAssistantComposer({
                         >
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Menu className="size-4" />} aria-label="添加素材" />
                         </Dropdown>
-                        {codexControls}
                         <CanvasImageSettingsPopover
                             config={imageConfig}
                             placement="topLeft"
@@ -118,7 +115,6 @@ export function CanvasAssistantComposer({
                         />
                     </div>
                     <div className="flex shrink-0 items-center gap-1">
-                        {!codexControls ? (
                         <Button
                             type="text"
                             shape="circle"
@@ -130,7 +126,6 @@ export function CanvasAssistantComposer({
                             aria-pressed={reasoningEnabled}
                             onClick={() => onAgentConfigChange({ textReasoningEnabled: !reasoningEnabled })}
                         />
-                        ) : null}
                         <Button
                             type="primary"
                             shape="circle"

@@ -558,19 +558,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
     }, [hydrated, openProject, projectId, router]);
 
     useEffect(() => {
-        if (!projectLoaded) return;
-        const openFromLink = () => {
-            const params = new URLSearchParams(window.location.hash.slice(1));
-            if (!params.has("agentUrl") && !params.has("agentToken")) return;
-            setAssistantMounted(true);
-            setAgentPanel((current) => ({ ...current, open: true }));
-        };
-        openFromLink();
-        window.addEventListener("hashchange", openFromLink);
-        return () => window.removeEventListener("hashchange", openFromLink);
-    }, [projectLoaded, projectId]);
-
-    useEffect(() => {
         if (!projectLoaded || applyingHistoryRef.current || historyPausedRef.current) return;
         const next = createHistoryEntry();
         const previous = lastHistoryRef.current;
@@ -3804,7 +3791,7 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             setNodes((prev) => prev.map((item) => {
                 const isRetryTarget = item.id === retryTargetId;
                 if (!isRetryTarget && !(retryMirrorsRoot && item.id === retryBatchRootId)) return item;
-                return { ...item, metadata: { ...item.metadata, status: NODE_STATUS_LOADING, errorDetails: undefined, content: undefined, storageKey: "", progress: 0, startedAt: retryStartedAt, ...(item.type === CanvasNodeType.Video ? { videoTaskId: retryVideoTaskId, videoTaskVideoId: undefined, videoTaskTranslation: undefined } : {}), ...(isCanvasImageNodeType(item.type) ? { imageTaskId: isRetryTarget ? retryImageTaskId : undefined, imageTaskResultId: undefined } : {}), ...(item.type === CanvasNodeType.Audio ? { audioTaskId: retryAudioTaskId, audioTaskResultId: undefined } : {}) } };
+                return { ...item, metadata: { ...item.metadata, status: NODE_STATUS_LOADING, errorDetails: undefined, content: undefined, storageKey: "", progress: 0, startedAt: retryStartedAt, ...(item.type === CanvasNodeType.Video ? { videoTaskId: retryVideoTaskId, videoTaskVideoId: undefined } : {}), ...(isCanvasImageNodeType(item.type) ? { imageTaskId: isRetryTarget ? retryImageTaskId : undefined, imageTaskResultId: undefined } : {}), ...(item.type === CanvasNodeType.Audio ? { audioTaskId: retryAudioTaskId, audioTaskResultId: undefined } : {}) } };
             }));
 
             try {
@@ -4585,7 +4572,6 @@ function InfiniteCanvasPage({ projectId }: { projectId: string }) {
             </section>
             {assistantMounted ? (
                 <CanvasAssistantPanel
-                    canvasId={projectId}
                     nodes={nodes}
                     selectedNodeIds={selectedNodeIds}
                     referenceNodeClick={agentReferenceNodeClick}
@@ -5260,7 +5246,6 @@ function applyCanvasVideoTaskUpdate(nodes: CanvasNodeData[], nodeId: string, tas
             progress,
             videoTaskId: task.task_id || task.id || node.metadata?.videoTaskId,
             videoTaskVideoId: task.video_id || node.metadata?.videoTaskVideoId,
-            videoTaskTranslation: task.translationSnapshot,
         };
         if (!completed || !url) return { ...node, metadata };
         const taskSize = parseCanvasVideoTaskSize(task.size, fallbackSize);
@@ -5555,7 +5540,6 @@ function canvasVideoTaskFromMetadata(metadata?: CanvasNodeMetadata): VideoRespon
         model: metadata?.model,
         status: metadata?.status,
         progress: metadata?.progress,
-        ...(metadata?.videoTaskTranslation ? { parameter_translation: true, translationSnapshot: metadata.videoTaskTranslation } : {}),
     };
 }
 

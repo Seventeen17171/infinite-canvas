@@ -2,32 +2,8 @@ package handler
 
 import (
 	"reflect"
-	"strings"
 	"testing"
 )
-
-func TestPrepareDirectAIRequestKIEGrokImagineImage20(t *testing.T) {
-	plan, err := prepareDirectAIRequest(directAIRequestInput{
-		Channel:  directAIChannelInput{Protocol: "kie", BaseURL: "https://api.kie.ai"},
-		Model:    "grok-imagine-image-2-0/text-to-image",
-		Endpoint: "/images/generations",
-		Body:     map[string]any{"prompt": "test", "size": "1536x1024"},
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-	if plan.Provider != "kie" || !strings.HasSuffix(plan.URL, "/v1/client/tasks") {
-		t.Fatalf("unexpected plan: %#v", plan)
-	}
-	payload := testDirectRecord(t, plan.Body)
-	if payload["model"] != "grok-imagine-image-2-0/text-to-image" {
-		t.Fatalf("unexpected model: %#v", payload["model"])
-	}
-	input := testDirectRecord(t, payload["input"])
-	if input["prompt"] != "test" || input["aspect_ratio"] != "3:2" {
-		t.Fatalf("unexpected input: %#v", input)
-	}
-}
 
 func TestNormalizeKIEKlingOmniVideoInput(t *testing.T) {
 	tests := []struct {
@@ -65,18 +41,6 @@ func TestNormalizeKIEKlingOmniVideoInput(t *testing.T) {
 				t.Fatalf("unexpected input:\nwant: %#v\n got: %#v", test.want, test.input)
 			}
 		})
-	}
-}
-
-func TestPrepareDirectAIRequestRejectsMediaData(t *testing.T) {
-	_, err := prepareDirectAIRequest(directAIRequestInput{
-		Channel:  directAIChannelInput{Protocol: "kie", BaseURL: "https://api.kie.ai"},
-		Model:    "bytedance/seedance-2",
-		Endpoint: "/videos",
-		Body:     map[string]any{"image": "data:image/png;base64,AAAA"},
-	})
-	if err == nil || !strings.Contains(err.Error(), "参考文件不能传给参数转译接口") {
-		t.Fatalf("unexpected error: %v", err)
 	}
 }
 

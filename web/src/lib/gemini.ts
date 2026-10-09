@@ -1,4 +1,4 @@
-import { channelProtocolForConfig, localChannelForActiveModel, type AiConfig } from "@/stores/use-config-store";
+import { channelProtocolForConfig, type AiConfig } from "@/stores/use-config-store";
 
 export const GEMINI_PROTOCOL = "gemini" as const;
 export const GEMINI_DEFAULT_BASE_URL = "https://generativelanguage.googleapis.com";
@@ -17,27 +17,6 @@ export function isGeminiTtsModel(model: string) {
 
 export function normalizeGeminiModel(model: string) {
     return model.trim().replace(/^models\//i, "");
-}
-
-export function normalizeGeminiBaseUrl(baseUrl: string) {
-    return (baseUrl.trim() || GEMINI_DEFAULT_BASE_URL).replace(/\/+$/, "").replace(/\/v1beta$/i, "");
-}
-
-export function geminiActionUrl(baseUrl: string, model: string, action: "generateContent" | "streamGenerateContent" | "predictLongRunning") {
-    const suffix = action === "streamGenerateContent" ? ":streamGenerateContent?alt=sse" : `:${action}`;
-    return `${normalizeGeminiBaseUrl(baseUrl)}/v1beta/models/${encodeURIComponent(normalizeGeminiModel(model))}${suffix}`;
-}
-
-export function geminiOperationUrl(baseUrl: string, operation: string) {
-    const name = operation.trim().replace(/^\/+/, "").replace(/^v1beta\//i, "");
-    return `${normalizeGeminiBaseUrl(baseUrl)}/v1beta/${name}`;
-}
-
-export function geminiDirectHeaders(config: AiConfig) {
-    return {
-        "Content-Type": "application/json",
-        "x-goog-api-key": localChannelForActiveModel(config)?.apiKey || config.apiKey,
-    };
 }
 
 export function dataUrlToGeminiInlineData(dataUrl: string) {

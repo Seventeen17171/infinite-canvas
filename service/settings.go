@@ -11,8 +11,8 @@ import (
 	"math/rand"
 	"net/http"
 	"net/url"
-	"sort"
 	"slices"
+	"sort"
 	"strings"
 	"time"
 
@@ -26,18 +26,7 @@ func PublicSettings() (model.PublicSetting, error) {
 	settings, err := repository.GetSettings()
 	settings = normalizeSettings(settings)
 	settings.Public.ModelChannel.Channels = publicChannelInfos(settings.Private.Channels, settings.Public.ModelChannel.AvailableModels, settings.Public.ModelChannel.AvailableWorkflows)
-	if len(settings.Public.ModelChannel.AvailableModels) == 0 {
-		settings.Public.ModelChannel.AvailableModels = enabledChannelModels(settings.Private.Channels)
-	}
 	return settings.Public, err
-}
-
-func UserCanUseRemoteModelChannel(user model.AuthUser) bool {
-	if user.Role == model.UserRoleAdmin {
-		return true
-	}
-	settings, err := PublicSettings()
-	return err == nil && settings.ModelChannel.AllowUserRemoteChannel != nil && *settings.ModelChannel.AllowUserRemoteChannel
 }
 
 func AdminSettings() (model.Settings, error) {
@@ -201,14 +190,7 @@ func normalizePublicSettingWithChannels(setting model.PublicSetting, channels []
 		}
 		setting.ModelChannel.ModelCosts[i].Credits = normalizeCredits(setting.ModelChannel.ModelCosts[i].Credits)
 	}
-	if setting.ModelChannel.AllowCustomChannel == nil {
-		enabled := true
-		setting.ModelChannel.AllowCustomChannel = &enabled
-	}
-	if setting.ModelChannel.AllowUserRemoteChannel == nil {
-		enabled := false
-		setting.ModelChannel.AllowUserRemoteChannel = &enabled
-	}
+
 	if setting.Auth.AllowRegister == nil {
 		enabled := true
 		setting.Auth.AllowRegister = &enabled
@@ -341,9 +323,9 @@ func SelectModelChannelForModel(modelName string, channelID string, publicOnly b
 		return model.ModelChannel{}, err
 	}
 	privateChannels := normalizePrivateSetting(settings.Private).Channels
-	if publicOnly && len(settings.Public.ModelChannel.AvailableModels) > 0 {
+	if publicOnly {
 		selected := filterEnabledModels(settings.Public.ModelChannel.AvailableModels, enabledChannelModels(privateChannels))
-		if len(selected) > 0 && !slices.Contains(selected, modelName) {
+		if !slices.Contains(selected, modelName) {
 			return model.ModelChannel{}, safeMessageError{message: "模型未开放"}
 		}
 	}
@@ -1113,6 +1095,9 @@ func providerSecureHash(parts []string) string {
 func modelChannelsForModel(channels []model.ModelChannel, modelName string) []model.ModelChannel {
 	result := []model.ModelChannel{}
 	for _, channel := range channels {
+		if !channel.Enabled {
+			continue
+		}
 		if isWorkflowChannelProtocol(channel.Protocol) {
 			continue
 		}
@@ -1136,10 +1121,13 @@ func publicChannelInfos(channels []model.ModelChannel, availableModels, availabl
 		allowed[name] = true
 	}
 	for _, channel := range channels {
+		if !channel.Enabled {
+			continue
+		}
 		if isWorkflowChannelProtocol(channel.Protocol) {
 			workflows := []model.WorkflowSummary{}
 			for _, entry := range channel.Workflows {
-				if !entry.Enabled || entry.Provider != channel.Protocol || (len(availableWorkflows) > 0 && !allowed[workflowBillingName(WorkflowRef{Scope: "system", ChannelID: channel.ID, Kind: entry.Kind, WorkflowID: entry.WorkflowID})]) {
+				if !entry.Enabled || entry.Provider != channel.Protocol || !allowed[workflowBillingName(WorkflowRef{Scope: "system", ChannelID: channel.ID, Kind: entry.Kind, WorkflowID: entry.WorkflowID})] {
 					continue
 				}
 				workflows = append(workflows, model.WorkflowSummary{
@@ -1158,12 +1146,9 @@ func publicChannelInfos(channels []model.ModelChannel, availableModels, availabl
 		if !channel.Enabled || channel.BaseURL == "" || len(channel.Models) == 0 {
 			continue
 		}
-		models := append([]string{}, channel.Models...)
-		if len(availableModels) > 0 {
-			models = filterEnabledModels(models, availableModels)
-			if len(models) == 0 {
-				continue
-			}
+		models := filterEnabledModels(channel.Models, availableModels)
+		if len(models) == 0 {
+			continue
 		}
 		modelCapabilities := map[string]string{}
 		for _, name := range models {
@@ -1178,7 +1163,6 @@ func publicChannelInfos(channels []model.ModelChannel, availableModels, availabl
 			ID:                         channel.ID,
 			Protocol:                   channel.Protocol,
 			Name:                       channel.Name,
-			BaseURL:                    channel.BaseURL,
 			Models:                     models,
 			Weight:                     channel.Weight,
 			Timeout:                    channel.Timeout,

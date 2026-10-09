@@ -203,8 +203,6 @@ export type AdminPublicModelChannelSettings = {
         workflow: string;
         workflowAgent: string;
     };
-    allowCustomChannel: boolean;
-    allowUserRemoteChannel: boolean;
 };
 
 export type AdminModelCost = {
@@ -217,7 +215,6 @@ export type AdminPublicModelChannelInfo = {
     id: string;
     protocol: AdminModelChannel["protocol"];
     name: string;
-    baseUrl: string;
     models: string[];
     modelCapabilities?: ModelCapabilities;
     weight: number;
@@ -269,7 +266,6 @@ export type AdminPrivateSettings = {
         cron: string;
     };
     aiLog: {
-        localDirectReportEnabled: boolean;
         cleanup: {
             enabled: boolean;
             retentionDays: number;

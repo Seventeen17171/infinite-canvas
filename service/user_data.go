@@ -11,11 +11,16 @@ import (
 )
 
 type UserConfigPayload struct {
-	ModelConfig      json.RawMessage       `json:"modelConfig,omitempty"`
+	StorageSync      UserStorageSync       `json:"storageSync"`
 	StorageProvider  *UserStorageProviders `json:"storageProvider,omitempty"`
 	ImageHistory     json.RawMessage       `json:"imageHistory,omitempty"`
 	AssetData        json.RawMessage       `json:"assetData,omitempty"`
 	SyncCapabilities map[string]bool       `json:"syncCapabilities,omitempty"`
+}
+
+type UserStorageSync struct {
+	S3     bool `json:"s3"`
+	WebDAV bool `json:"webdav"`
 }
 
 type StorageObjectProviderInput struct {
@@ -38,110 +43,6 @@ type UserStorageProviders struct {
 	WebDAV *StorageObjectProviderInput `json:"webdav,omitempty"`
 }
 
-type userModelConfigInput struct {
-	LocalChannels       []userLocalModelChannelInput `json:"localChannels"`
-	ChannelTranslations []struct {
-		ChannelID            string `json:"channelId"`
-		ParameterTranslation string `json:"parameterTranslation"`
-	} `json:"channelTranslations"`
-}
-
-type userLocalModelChannelInput struct {
-	ID       string   `json:"id"`
-	Protocol string   `json:"protocol"`
-	Name     string   `json:"name"`
-	BaseURL  string   `json:"baseUrl"`
-	APIKey   string   `json:"apiKey"`
-	Models   []string `json:"models"`
-}
-
-func SelectUserLocalModelChannelForModel(userID string, modelName string, channelID string) (model.ModelChannel, error) {
-	userID = strings.TrimSpace(userID)
-	modelName = strings.TrimSpace(modelName)
-	channelID = strings.TrimSpace(channelID)
-	if userID == "" {
-		return model.ModelChannel{}, errors.New("请先登录")
-	}
-	if modelName == "" {
-		return model.ModelChannel{}, errors.New("缺少模型名称")
-	}
-	if channelID == "" {
-		return model.ModelChannel{}, errors.New("缺少模型渠道")
-	}
-	config, ok, err := repository.GetUserConfig(userID)
-	if err != nil {
-		return model.ModelChannel{}, err
-	}
-	if !ok || strings.TrimSpace(config.ModelConfig) == "" {
-		return model.ModelChannel{}, errors.New("本地渠道不存在")
-	}
-	var modelConfig userModelConfigInput
-	if err := json.Unmarshal([]byte(config.ModelConfig), &modelConfig); err != nil {
-		return model.ModelChannel{}, err
-	}
-	for _, channel := range modelConfig.LocalChannels {
-		if strings.TrimSpace(channel.ID) != channelID {
-			continue
-		}
-		baseURL := strings.TrimSpace(channel.BaseURL)
-		apiKey := strings.TrimSpace(channel.APIKey)
-		if baseURL == "" || apiKey == "" {
-			return model.ModelChannel{}, errors.New("本地渠道配置不完整")
-		}
-		models := userLocalChannelModels(channel.Models)
-		if len(models) > 0 && !userLocalChannelHasModel(models, modelName) {
-			return model.ModelChannel{}, errors.New("本地渠道不支持该模型")
-		}
-		protocol := strings.ToLower(strings.TrimSpace(channel.Protocol))
-		if protocol == "" {
-			protocol = "openai"
-		}
-		parameterTranslation := ""
-		for _, translation := range modelConfig.ChannelTranslations {
-			if translation.ChannelID == channelID {
-				parameterTranslation = translation.ParameterTranslation
-				break
-			}
-		}
-		return model.ModelChannel{
-			ID:                   channelID,
-			Protocol:             protocol,
-			Name:                 firstVideoTaskValue(strings.TrimSpace(channel.Name), "本地直连"),
-			BaseURL:              baseURL,
-			APIKey:               apiKey,
-			Models:               models,
-			Weight:               1,
-			Timeout:              600,
-			Enabled:              true,
-			ParameterTranslation: parameterTranslation,
-		}, nil
-	}
-	return model.ModelChannel{}, errors.New("本地渠道不存在")
-}
-
-func userLocalChannelModels(models []string) []string {
-	result := make([]string, 0, len(models))
-	seen := map[string]bool{}
-	for _, item := range models {
-		modelName := strings.TrimSpace(item)
-		if modelName == "" || seen[modelName] {
-			continue
-		}
-		result = append(result, modelName)
-		seen[modelName] = true
-	}
-	return result
-}
-
-func userLocalChannelHasModel(models []string, modelName string) bool {
-	for _, item := range models {
-		if strings.EqualFold(strings.TrimSpace(item), modelName) {
-			return true
-		}
-	}
-	return false
-}
-
 func CurrentUserConfig(ctx context.Context) (UserConfigPayload, error) {
 	user, ok := UserFromContext(ctx)
 	if !ok || user.ID == "" {
@@ -162,19 +63,20 @@ func CurrentUserConfig(ctx context.Context) (UserConfigPayload, error) {
 		return result, nil
 	}
 	if strings.TrimSpace(config.ModelConfig) != "" {
-		result.ModelConfig = json.RawMessage(config.ModelConfig)
-	}
-	if strings.TrimSpace(config.StorageProvider) != "" {
-		providers := readUserStorageProviders(config.StorageProvider)
-		var syncFlags struct {
+		var flags struct {
 			SyncStorageConfig       bool `json:"syncStorageConfig"`
 			SyncWebDAVStorageConfig bool `json:"syncWebDAVStorageConfig"`
 		}
-		_ = json.Unmarshal(result.ModelConfig, &syncFlags)
-		if !syncFlags.SyncStorageConfig {
+		if json.Unmarshal([]byte(config.ModelConfig), &flags) == nil {
+			result.StorageSync = UserStorageSync{S3: flags.SyncStorageConfig, WebDAV: flags.SyncWebDAVStorageConfig}
+		}
+	}
+	if strings.TrimSpace(config.StorageProvider) != "" {
+		providers := readUserStorageProviders(config.StorageProvider)
+		if !result.StorageSync.S3 {
 			providers.S3 = nil
 		}
-		if !syncFlags.SyncWebDAVStorageConfig {
+		if !result.StorageSync.WebDAV {
 			providers.WebDAV = nil
 		}
 		if providers.S3 != nil || providers.WebDAV != nil {
@@ -196,44 +98,6 @@ func readUserStorageProviders(raw string) UserStorageProviders {
 		_ = json.Unmarshal([]byte(raw), &providers)
 	}
 	return providers
-}
-
-func SaveCurrentUserModelConfig(ctx context.Context, raw json.RawMessage) (UserConfigPayload, error) {
-	user, ok := UserFromContext(ctx)
-	if !ok || user.ID == "" {
-		return UserConfigPayload{}, errors.New("请先登录")
-	}
-	config, _, err := repository.GetUserConfig(user.ID)
-	if err != nil {
-		return UserConfigPayload{}, err
-	}
-	current := now()
-	if config.UserID == "" {
-		config.UserID = user.ID
-		config.CreatedAt = current
-	}
-	var incoming, saved map[string]json.RawMessage
-	if json.Unmarshal(raw, &incoming) == nil && incoming != nil {
-		var input userModelConfigInput
-		if json.Unmarshal(raw, &input) != nil {
-			return UserConfigPayload{}, errors.New("模型配置格式错误")
-		}
-		for _, translation := range input.ChannelTranslations {
-			if _, err := ParameterTranslationModels(translation.ParameterTranslation); err != nil {
-				return UserConfigPayload{}, err
-			}
-		}
-		if _, supplied := incoming["channelTranslations"]; !supplied && json.Unmarshal([]byte(config.ModelConfig), &saved) == nil && saved["channelTranslations"] != nil {
-			incoming["channelTranslations"] = saved["channelTranslations"]
-			raw, _ = json.Marshal(incoming)
-		}
-	}
-	config.ModelConfig = string(raw)
-	config.UpdatedAt = current
-	if _, err := repository.SaveUserConfig(config); err != nil {
-		return UserConfigPayload{}, err
-	}
-	return CurrentUserConfig(ctx)
 }
 
 func CurrentUserImageHistory(ctx context.Context) (json.RawMessage, error) {

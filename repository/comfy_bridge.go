@@ -138,24 +138,6 @@ func DeleteComfyBridge(id, scope, ownerID string) ([]string, error) {
 					}
 				}
 			}
-		case "personal":
-			var config model.UserConfig
-			err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).First(&config, "user_id = ?", ownerID).Error
-			if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-			if err == nil {
-				value, changed, err := clearComfyBridgeReference([]byte(config.ModelConfig), "localChannels", id)
-				if err != nil {
-					return err
-				}
-				if changed {
-					config.ModelConfig, config.UpdatedAt = string(value), userConfigTimestamp()
-					if err := tx.Select("ModelConfig", "UpdatedAt").Save(&config).Error; err != nil {
-						return err
-					}
-				}
-			}
 		default:
 			return errors.New("Bridge 归属类型无效")
 		}

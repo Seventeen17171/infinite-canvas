@@ -9,13 +9,18 @@ import (
 )
 
 func CreateWorkflowTask(w http.ResponseWriter, r *http.Request) {
+	if rejectRetiredModelConnection(w, r) {
+		return
+	}
 	user, ok := service.UserFromContext(r.Context())
 	if !ok {
 		FailWithStatus(w, http.StatusUnauthorized, "请先登录")
 		return
 	}
 	var input service.WorkflowRunInput
-	if err := json.NewDecoder(http.MaxBytesReader(w, r.Body, 96<<20)).Decode(&input); err != nil {
+	decoder := json.NewDecoder(http.MaxBytesReader(w, r.Body, 96<<20))
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&input); err != nil {
 		Fail(w, "工作流请求格式无效或超过 96MB")
 		return
 	}

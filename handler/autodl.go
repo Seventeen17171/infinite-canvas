@@ -11,30 +11,6 @@ import (
 	"github.com/tigerowo/infinite-canvas/service"
 )
 
-func AutoDLWorkflows(w http.ResponseWriter, r *http.Request) {
-	r.Body = http.MaxBytesReader(w, r.Body, 8<<10)
-	var input struct {
-		BaseURL string `json:"baseUrl"`
-		WorkflowID string `json:"workflowId"`
-	}
-	if json.NewDecoder(r.Body).Decode(&input) != nil {
-		Fail(w, "AutoDL 工作流参数格式错误")
-		return
-	}
-	var result any
-	var err error
-	if strings.TrimSpace(input.WorkflowID) == "" {
-		result, err = service.AutoDLWorkflows(input.BaseURL)
-	} else {
-		result, err = service.AutoDLWorkflowDetail(input.BaseURL, input.WorkflowID)
-	}
-	if err != nil {
-		Fail(w, err.Error())
-		return
-	}
-	OK(w, result)
-}
-
 func prepareAutoDLRequest(input aiProtocolRequest) (aiProtocolRequest, bool, error) {
 	if !service.IsAutoDLChannel(input.channel) {
 		return input, false, nil

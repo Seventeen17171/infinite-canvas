@@ -55,14 +55,13 @@ func TestModelProtocolChannelFlow(t *testing.T) {
 	// Representative channel contracts; model variants and precedence have separate fixtures.
 	tests := []struct {
 		name, protocol, modelName, endpoint, body, path, wantBody, payload, pollPath, pollPayload, wantResponse, message string
-		local                                                                                                            bool
 	}{
 		{name: "Gemini nonstream", protocol: "gemini", modelName: "gemini-text", endpoint: "/chat/completions", body: `{"model":"gemini-text","stream":false,"contents":[]}`, path: "/v1beta/models/gemini-text:generateContent", wantBody: `{"contents":[]}`, payload: `{"candidates":[]}`},
 		{name: "Gemini stream", protocol: "gemini", modelName: "gemini-text", endpoint: "/chat/completions", body: `{"model":"gemini-text","stream":true,"contents":[]}`, path: "/v1beta/models/gemini-text:streamGenerateContent?alt=sse", wantBody: `{"contents":[]}`, payload: `{"candidates":[]}`},
 		{name: "MiMo audio", protocol: "mimo", modelName: "mimo-v2.5-tts", endpoint: "/audio/speech", body: `{"model":"mimo-v2.5-tts","input":" hello "}`, path: "/v1/chat/completions", wantBody: `{"model":"mimo-v2.5-tts","messages":[{"role":"assistant","content":"hello"}],"audio":{"format":"wav","voice":"冰糖"}}`, payload: `{"choices":[{"message":{"audio":{"data":"AQID"}}}]}`, wantResponse: "\x01\x02\x03"},
 		{name: "APIMart edit create and poll", protocol: "apimart", endpoint: "/images/edits", body: `{"model":"future-model","prompt":"scene"}`, path: "/v1/images/generations", payload: `{"code":200,"data":[{"task_id":"upstream-job","status":"submitted"}]}`, pollPath: "/v1/tasks/upstream-job?language=zh", pollPayload: `{"code":200,"data":{"id":"upstream-job","status":"completed","result":{"images":[{"url":"https://media.invalid/image"}]}}}`, wantResponse: `{"data":[{"url":"https://media.invalid/image"}]}`},
 		{name: "KIE Grok client tasks", protocol: "kie", modelName: "grok-imagine-image-2-0/text-to-image", endpoint: "/images/generations", body: `{"model":"grok-imagine-image-2-0/text-to-image","prompt":"scene"}`, path: "/v1/client/tasks", wantBody: `{"model":"grok-imagine-image-2-0/text-to-image","input":{"prompt":"scene"}}`, payload: `{"code":200,"data":{"taskId":"upstream-job"}}`, pollPath: "/v1/jobs/recordInfo?taskId=upstream-job", pollPayload: `{"code":200,"data":{"taskId":"upstream-job","state":"success","resultJson":{"resultUrls":["https://media.invalid/image"]}}}`, wantResponse: `{"data":[{"url":"https://media.invalid/image"}]}`},
-		{name: "KIE video create", protocol: "kie", endpoint: "/videos", body: `{"model":"future-model","prompt":"scene","seconds":7}`, path: "/v1/jobs/createTask", wantBody: `{"model":"future-model","input":{"prompt":"scene","duration":7}}`, payload: `{"code":200,"data":{"taskId":"upstream-job"}}`, local: true, pollPath: "/v1/jobs/recordInfo?taskId=upstream-job", pollPayload: `{"code":200,"data":{"taskId":"upstream-job","state":"success","resultJson":{"resultUrls":["https://media.invalid/video"]}}}`},
+		{name: "KIE video create", protocol: "kie", endpoint: "/videos", body: `{"model":"future-model","prompt":"scene","seconds":7}`, path: "/v1/jobs/createTask", wantBody: `{"model":"future-model","input":{"prompt":"scene","duration":7}}`, payload: `{"code":200,"data":{"taskId":"upstream-job"}}`, pollPath: "/v1/jobs/recordInfo?taskId=upstream-job", pollPayload: `{"code":200,"data":{"taskId":"upstream-job","state":"success","resultJson":{"resultUrls":["https://media.invalid/video"]}}}`},
 		{name: "APIMart video create", protocol: "apimart", endpoint: "/videos", body: `{"model":"future-model","prompt":"scene","seconds":"7s"}`, path: "/v1/videos/generations", wantBody: `{"model":"future-model","prompt":"scene","duration":7}`, payload: `{"code":200,"data":[{"task_id":"upstream-job","status":"submitted"}]}`, pollPath: "/v1/tasks/upstream-job?language=zh", pollPayload: `{"code":200,"data":{"id":"upstream-job","status":"completed","result":{"videos":[{"url":"https://media.invalid/video"}]}}}`},
 		{name: "MiniMax video create", protocol: "minimax", modelName: "MiniMax-H3", endpoint: "/videos", body: `{"model":"MiniMax-H3","prompt":"scene"}`, path: "/v2/video_generation", payload: `{"task_id":"upstream-job","status":"processing"}`, pollPath: "/v2/query/video_generation/upstream-job", pollPayload: `{"task":{"id":"upstream-job","status":"success","content":{"url":"https://media.invalid/video"}}}`},
 		{name: "Grok video create", protocol: "grok2api", modelName: "grok-imagine-video", endpoint: "/videos", body: `{"model":"grok-imagine-video","prompt":"scene"}`, path: "/v1/videos/generations", payload: `{"id":"upstream-job","status":"processing"}`},
@@ -80,21 +79,10 @@ func TestModelProtocolChannelFlow(t *testing.T) {
 			test.body = firstNonEmpty(test.body, `{"model":"future-model"}`)
 			test.wantBody = firstNonEmpty(test.wantBody, test.body)
 			channel := model.ModelChannel{ID: "channel", Name: "fixture", Protocol: test.protocol, BaseURL: "https://upstream.invalid", APIKey: "remote-key", Models: []string{test.modelName}, Enabled: true, Weight: 1}
-			if _, err := repository.SaveSettings(model.Settings{Private: model.PrivateSetting{Channels: []model.ModelChannel{channel}}}, "fixture"); err != nil {
+			if _, err := repository.SaveSettings(model.Settings{Private: model.PrivateSetting{Channels: []model.ModelChannel{channel}}, Public: model.PublicSetting{ModelChannel: model.PublicModelChannelSetting{AvailableModels: []string{test.modelName}}}}, "fixture"); err != nil {
 				t.Fatal(err)
 			}
 			key, localID := channel.APIKey, ""
-			if test.local {
-				key, localID = "local-key", channel.ID
-				channel.APIKey = key
-				body, err := json.Marshal(map[string]any{"localChannels": []model.ModelChannel{channel}})
-				if err != nil {
-					t.Fatal(err)
-				}
-				if err := db.Save(&model.UserConfig{UserID: user.ID, ModelConfig: string(body)}).Error; err != nil {
-					t.Fatal(err)
-				}
-			}
 			calls, closed, wantCalls := 0, 0, 1
 			if test.pollPath != "" {
 				wantCalls = 2

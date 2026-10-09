@@ -28,7 +28,7 @@ type Props = {
     channel: WorkflowChannelSettings;
     workflows: WorkflowEntry[];
     token: string;
-    admin?: { index?: number; channel: AdminModelChannel };
+    admin: { index?: number; channel: AdminModelChannel };
     onChannelChange: (patch: Partial<WorkflowChannelSettings>) => void;
     onBridgeDeleted: (bridgeId: string) => void;
     onWorkflowsChange: (workflows: WorkflowEntry[]) => void;
@@ -65,8 +65,8 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
 
     useEffect(() => {
         if (channel.protocol !== "comfyui" || !token) return;
-        void listComfyBridges(token, Boolean(admin)).then(setBridges).catch((error) => message.error(error instanceof Error ? error.message : "读取 Bridge 失败"));
-    }, [channel.protocol, token, admin?.index]);
+        void listComfyBridges(token).then(setBridges).catch((error) => message.error(error instanceof Error ? error.message : "读取 Bridge 失败"));
+    }, [channel.protocol, token, admin.index]);
 
     const choose = (key?: string) => {
         const item = workflows.find((entry) => entryKey(entry) === key);
@@ -99,7 +99,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
                 if (!channel.bridgeId) throw new Error("请先选择 Bridge 设备");
                 const discovered = bridge?.capabilities?.workflows?.find((entry) => entry.workflowId === id);
                 const source = jsonText.trim() ? JSON.parse(jsonText) as Record<string, unknown> : undefined;
-                const inspected = await inspectComfyBridge(token, { bridgeId: channel.bridgeId, workflowId: id, workflowJson: source, capability }, Boolean(admin));
+                const inspected = await inspectComfyBridge(token, { bridgeId: channel.bridgeId, workflowId: id, workflowJson: source, capability });
                 incoming = { provider: "comfyui", kind: "workflow", workflowId: id, title: title.trim() || discovered?.title || id, capability, enabled: true, fields: inspected.fields, workflowJson: inspected.workflowJson, workflowGraph: inspected.workflowGraph };
             }
             if (!activeRef.current) return;
@@ -129,7 +129,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
             if (!token || !channel.bridgeId) return message.error("请先连接 Bridge");
             setBusy(true);
             try {
-                const inspected = await inspectComfyBridge(token, { bridgeId: channel.bridgeId, workflowId: selected.workflowId, workflowJson: source, capability: selected.capability }, Boolean(admin));
+                const inspected = await inspectComfyBridge(token, { bridgeId: channel.bridgeId, workflowId: selected.workflowId, workflowJson: source, capability: selected.capability });
                 if (!activeRef.current) return;
                 saveEntry({ ...selected, workflowJson: inspected.workflowJson, workflowGraph: inspected.workflowGraph || selected.workflowGraph, fields: mergeWorkflowFieldMappings(selected.fields, inspected.fields, selected.capability) });
                 setJsonText(JSON.stringify(inspected.workflowJson, null, 2));
@@ -143,13 +143,13 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
 
     const refreshBridges = async () => {
         if (!token) return;
-        setBridges(await listComfyBridges(token, Boolean(admin)));
+        setBridges(await listComfyBridges(token));
     };
 
     const registerBridge = async () => {
         if (!token) return message.warning("注册 Bridge 请先登录");
         try {
-            const created = await createComfyBridge(token, bridgeName, Boolean(admin));
+            const created = await createComfyBridge(token, bridgeName);
             setNewToken(created.token);
             setNewTokenBridgeId(created.bridge.id);
             onChannelChange({ bridgeId: created.bridge.id });
@@ -168,7 +168,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
     return <div className={`${styles.root} space-y-3`} inert={busy}>
         {channel.protocol === "runninghub" ? <div className="grid gap-3 md:grid-cols-2">
             <Form.Item label="Base URL" className="!mb-0"><AutoComplete value={channel.baseUrl} options={[{ label: "中国站 · https://www.runninghub.cn", value: "https://www.runninghub.cn" }, { label: "国际站 · https://www.runninghub.ai", value: "https://www.runninghub.ai" }]} onChange={(baseUrl) => onChannelChange({ baseUrl })}><Input /></AutoComplete></Form.Item>
-            <Form.Item label="积分 API Key（提交、查询）" className="!mb-0"><Input.Password value={channel.apiKey} onChange={(event) => onChannelChange({ apiKey: event.target.value })} placeholder={admin?.index === undefined ? "" : "留空沿用已保存密钥"} /></Form.Item>
+            <Form.Item label="积分 API Key（提交、查询）" className="!mb-0"><Input.Password value={channel.apiKey} onChange={(event) => onChannelChange({ apiKey: event.target.value })} placeholder={admin.index === undefined ? "" : "留空沿用已保存密钥"} /></Form.Item>
             <Form.Item label="素材上传 API Key（企业级）" className="!mb-0 md:col-span-2"><Input.Password value={channel.uploadApiKey || ""} onChange={(event) => onChannelChange({ uploadApiKey: event.target.value })} placeholder="没有参考素材可以留空" /></Form.Item>
         </div> : <div className="space-y-3">
             <div className="grid gap-3 md:grid-cols-2">
@@ -176,7 +176,7 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
                 <Form.Item label="设备状态" className="!mb-0"><div className="flex items-center gap-2 pt-1"><Tag color={bridge?.online ? "success" : "default"}>{bridge?.online ? "在线" : "未连接"}</Tag><Button size="small" onClick={() => void refreshBridges()}>刷新发现</Button>{bridge ? <Popconfirm title="删除此 Bridge 设备？" onConfirm={async () => {
                     const bridgeId = bridge.id;
                     try {
-                        await deleteComfyBridge(token, bridgeId, Boolean(admin));
+                        await deleteComfyBridge(token, bridgeId);
                     } catch (error) {
                         message.error(error instanceof Error ? error.message : "删除设备失败");
                         return;
@@ -209,6 +209,6 @@ export function WorkflowChannelPane({ channel, workflows, token, admin, onChanne
         {mode === "fields" ? <>
             {selected?.kind === "app" ? <WorkflowFieldMappingEditor fields={selected.fields} onChange={(fields) => saveEntry({ ...selected, fields })} /> : <WorkflowGraphEditor workflowJson={selected?.workflowJson} workflowGraph={selected?.workflowGraph} fields={selected?.fields || []} onChange={(fields) => selected && saveEntry({ ...selected, fields })} disabled={!selected} emptyDescription={`请先拉取 ${channel.protocol === "runninghub" ? "RunningHub" : "ComfyUI"} 工作流`} />}
             {kind !== "app" ? <details className="rounded border border-[var(--ant-color-border)] p-2"><summary>查看或编辑 ComfyUI API JSON</summary><Input.TextArea className="!mt-2" rows={12} spellCheck={false} value={jsonText} disabled={busy} onChange={(event) => setJsonText(event.target.value)} onBlur={channel.protocol === "runninghub" ? () => void saveJson() : undefined} placeholder={'{"3":{"class_type":"...","inputs":{}}}'} />{channel.protocol === "comfyui" ? <div className="mt-2 flex justify-end"><Button size="small" loading={busy} disabled={busy || !selected} onClick={() => void saveJson()}>应用 JSON</Button></div> : null}</details> : null}
-        </> : <><WorkflowTestWorkbench key={`${admin ? "system" : "personal"}:${channel.id}:${selected?.kind || kind}:${selected?.workflowId || ""}`} workflowRef={{ scope: admin ? "system" : "personal", channelId: channel.id, kind: selected?.kind || kind, workflowId: selected?.workflowId || "" }} token={token} provider={channel.protocol} workflowId={selected?.workflowId || ""} workflowKind={selected?.kind || kind} title={selected?.title || ""} capability={selected?.capability || capability} fields={selected?.fields || []} disabled={!selected || !selected.enabled || !token} disabledReason={!selected ? "请先拉取或选择一个已保存的工作流" : !token ? "请先登录" : "此条工作流已停用"} onBeforeTest={onBeforeTest} /></>}
+        </> : <><WorkflowTestWorkbench key={`${"system"}:${channel.id}:${selected?.kind || kind}:${selected?.workflowId || ""}`} workflowRef={{ scope: "system", channelId: channel.id, kind: selected?.kind || kind, workflowId: selected?.workflowId || "" }} token={token} provider={channel.protocol} workflowId={selected?.workflowId || ""} workflowKind={selected?.kind || kind} title={selected?.title || ""} capability={selected?.capability || capability} fields={selected?.fields || []} disabled={!selected || !selected.enabled || !token} disabledReason={!selected ? "请先拉取或选择一个已保存的工作流" : !token ? "请先登录" : "此条工作流已停用"} onBeforeTest={onBeforeTest} /></>}
     </div>;
 }

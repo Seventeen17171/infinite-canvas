@@ -76,12 +76,12 @@ type WorkflowEntry struct {
 }
 
 type WorkflowSummary struct {
-	Provider   string  `json:"provider"`
-	Kind       string  `json:"kind"`
-	WorkflowID string  `json:"workflowId"`
-	Title      string  `json:"title"`
-	Capability string  `json:"capability"`
-	Enabled    bool    `json:"enabled"`
+	Provider   string `json:"provider"`
+	Kind       string `json:"kind"`
+	WorkflowID string `json:"workflowId"`
+	Title      string `json:"title"`
+	Capability string `json:"capability"`
+	Enabled    bool   `json:"enabled"`
 }
 
 // ModelCost 模型算力点配置。
@@ -92,18 +92,16 @@ type ModelCost struct {
 
 // PublicModelChannelSetting 公开模型渠道配置。
 type PublicModelChannelSetting struct {
-	AvailableModels        []string                 `json:"availableModels"`
-	AvailableWorkflows     []string                 `json:"availableWorkflows"`
-	ModelCosts             []ModelCost              `json:"modelCosts"`
-	Channels               []PublicModelChannelInfo `json:"channels"`
-	DefaultModel           string                   `json:"defaultModel"`
-	DefaultImageModel      string                   `json:"defaultImageModel"`
-	DefaultVideoModel      string                   `json:"defaultVideoModel"`
-	DefaultTextModel       string                   `json:"defaultTextModel"`
-	SystemPrompt           string                   `json:"systemPrompt"`
-	SystemPrompts          SystemPromptSetting      `json:"systemPrompts"`
-	AllowCustomChannel     *bool                    `json:"allowCustomChannel"`
-	AllowUserRemoteChannel *bool                    `json:"allowUserRemoteChannel"`
+	AvailableModels    []string                 `json:"availableModels"`
+	AvailableWorkflows []string                 `json:"availableWorkflows"`
+	ModelCosts         []ModelCost              `json:"modelCosts"`
+	Channels           []PublicModelChannelInfo `json:"channels"`
+	DefaultModel       string                   `json:"defaultModel"`
+	DefaultImageModel  string                   `json:"defaultImageModel"`
+	DefaultVideoModel  string                   `json:"defaultVideoModel"`
+	DefaultTextModel   string                   `json:"defaultTextModel"`
+	SystemPrompt       string                   `json:"systemPrompt"`
+	SystemPrompts      SystemPromptSetting      `json:"systemPrompts"`
 }
 
 type SystemPromptSetting struct {
@@ -119,7 +117,6 @@ type PublicModelChannelInfo struct {
 	ID                         string            `json:"id"`
 	Protocol                   string            `json:"protocol"`
 	Name                       string            `json:"name"`
-	BaseURL                    string            `json:"baseUrl"`
 	Models                     []string          `json:"models"`
 	Weight                     int               `json:"weight"`
 	Timeout                    int               `json:"timeout"`
@@ -167,8 +164,7 @@ type PrivateSetting struct {
 }
 
 type AILogSetting struct {
-	LocalDirectReportEnabled *bool               `json:"localDirectReportEnabled"`
-	Cleanup                  AILogCleanupSetting `json:"cleanup"`
+	Cleanup AILogCleanupSetting `json:"cleanup"`
 }
 
 type AILogCleanupSetting struct {

@@ -12,22 +12,18 @@ import {
 function configFor(model: string, protocol: ModelChannelProtocol = "openai", name = "custom"): AiConfig {
     return {
         ...defaultConfig,
-        channelMode: "local", model, videoModel: model, imageModel: "", audioModel: "", textModel: "",
+        model, videoModel: model, imageModel: "", audioModel: "", textModel: "",
         activeChannelId: "chosen", videoChannelId: "chosen", imageChannelId: "", audioChannelId: "", textChannelId: "",
-        models: [model], publicChannels: [],
-        localChannels: [{ id: "chosen", protocol, name, baseUrl: "https://proxy.example", apiKey: "local-key", models: [model] }],
+        models: [model], publicChannels: [{ id: "chosen", protocol, name, models: [model] }],
     };
 }
 
-test("Kling panel matching keeps channel descriptions distinct from protocol selection", () => {
+test("Kling panel matching uses published channel protocol and metadata without private URLs", () => {
     const model = "kling-v3";
-    assert.equal(isAPIMartKlingV3Config(configFor(model, "apimart"), model), false);
+    assert.equal(isAPIMartKlingV3Config(configFor(model, "apimart"), model), true);
     assert.equal(isAPIMartKlingV3Config(configFor(model, "openai", "APIMart channel"), model), true);
-    const byURL = configFor(model);
-    byURL.localChannels[0].baseUrl = "https://api.apimart.ai/v1";
-    assert.equal(isAPIMartKlingV3Config(byURL, model), true);
+    assert.equal(isAPIMartKlingV3Config(configFor(model), model), false);
     const remote = configFor(model);
-    remote.channelMode = "remote";
     remote.publicChannels = [{ id: "chosen", protocol: "openai", models: [model], remark: "APIMART" }];
     assert.equal(isAPIMartKlingV3Config(remote, model), true);
     assert.equal(isAPIMartKlingV3Config(remote, "kling-v3-extra"), false);
@@ -36,8 +32,9 @@ test("Kling panel matching keeps channel descriptions distinct from protocol sel
 test("same model on different channels retains the selected channel identity", () => {
     const model = "kling-v3";
     const config = configFor(model);
-    config.localChannels.unshift({ ...config.localChannels[0], id: "other", name: "APIMart" });
+    config.publicChannels.unshift({ ...config.publicChannels[0], id: "other", name: "APIMart" });
     assert.equal(isAPIMartKlingV3Config(config, model), false);
+    config.activeChannelId = "other";
     config.videoChannelId = "other";
     assert.equal(isAPIMartKlingV3Config(config, model), true);
 });
@@ -45,15 +42,15 @@ test("same model on different channels retains the selected channel identity", (
 test("Kling model variants keep existing exact normalized matches", () => {
     const apimart = configFor("kling-v2.6", "openai", "APIMart");
     assert.equal(isAPIMartKlingV26Config(apimart, "kling-v2.6"), true);
-    assert.equal(isAPIMartKlingMotionControlConfig(apimart, "kling-v2.6-motion-control"), true);
+    assert.equal(isAPIMartKlingMotionControlConfig(configFor("kling-v2.6-motion-control", "apimart"), "kling-v2.6-motion-control"), true);
     const kie = configFor("kling-3.0/video", "openai", "KIE");
     assert.equal(isKIEKlingV3Config(kie, "kling-3.0/video"), true);
-    assert.equal(isKIEKlingMotionControlConfig(kie, "kling-2.6/motion-control"), true);
-    assert.equal(isKIEKlingMotionControlConfig(kie, "kling-3.0/motion-control"), true);
+    assert.equal(isKIEKlingMotionControlConfig(configFor("kling-2.6/motion-control", "kie"), "kling-2.6/motion-control"), true);
+    assert.equal(isKIEKlingMotionControlConfig(configFor("kling-3.0/motion-control", "kie"), "kling-3.0/motion-control"), true);
     for (const variant of ["text-to-video", "image-to-video", "reference-to-video", "transformation"]) {
         const model = `kling-3.0-omni/${variant}`;
-        assert.equal(kieKlingOmniVariant(kie, model), variant);
-        assert.equal(isKIEKlingV3Config(kie, model), true);
+        assert.equal(kieKlingOmniVariant(configFor(model, "kie"), model), variant);
+        assert.equal(isKIEKlingV3Config(configFor(model, "kie"), model), true);
     }
     assert.equal(kieKlingOmniVariant(kie, "kling-3.0-omni/unknown"), "");
 });

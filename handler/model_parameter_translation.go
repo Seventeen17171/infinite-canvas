@@ -151,7 +151,6 @@ func serveParameterTranslationVideo(w http.ResponseWriter, r *http.Request, body
 	} else if len(result.Body) > 0 {
 		videoURL = "data:" + strings.Split(result.ContentType, ";")[0] + ";base64," + base64.StdEncoding.EncodeToString(result.Body)
 	}
-	userChannelID := r.Header.Get(userModelChannelHeader)
 	seconds, size := "", ""
 	if value, ok := input.Variables["seconds"]; ok {
 		seconds = fmt.Sprint(value)
@@ -160,7 +159,7 @@ func serveParameterTranslationVideo(w http.ResponseWriter, r *http.Request, body
 		size = fmt.Sprint(value)
 	}
 	task, err := service.CreateVideoTask(service.VideoTaskCreateInput{
-		UserID: user.ID, UserDisplayName: logContext.UserDisplayName, Model: request.Model, ChannelID: channel.ID, UserChannelID: userChannelID, ChannelName: channel.Name,
+		UserID: user.ID, UserDisplayName: logContext.UserDisplayName, Model: request.Model, ChannelID: channel.ID, ChannelName: channel.Name,
 		Source: readVideoTaskSource(r), SourceID: readVideoTaskSourceID(r), ClientTaskID: readClientVideoTaskID(r), Status: result.Status, Progress: result.Progress,
 		Seconds: seconds, Size: size,
 		VideoURL: videoURL, RequestBody: string(body), ResponseBody: result.ResponseBody, Credits: credits, ParameterTranslationSnapshot: translation.Snapshot(*input, result),
