@@ -79,6 +79,22 @@ func SaveUser(user model.User) (model.User, error) {
 	return user, db.Save(&user).Error
 }
 
+// UpdateUserFields writes explicit columns without replacing a stale user snapshot.
+func UpdateUserFields(id string, values map[string]any) (model.User, error) {
+	db, err := DB()
+	if err != nil {
+		return model.User{}, err
+	}
+	var user model.User
+	err = db.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Model(&model.User{}).Where("id = ?", id).Updates(values).Error; err != nil {
+			return err
+		}
+		return tx.Where("id = ?", id).Take(&user).Error
+	})
+	return user, err
+}
+
 func ConsumeUserCredits(id string, credits float64, now string, log model.CreditLog, task any) (model.User, bool, error) {
 	db, err := DB()
 	if err != nil {
@@ -187,7 +203,20 @@ func DeleteUser(id string) error {
 	if err != nil {
 		return err
 	}
-	return db.Delete(&model.User{}, "id = ?", id).Error
+	return db.Transaction(func(db *gorm.DB) error {
+		tx := ProductionTx{db: db}
+		if _, err := tx.Users([]string{id}, true); err != nil {
+			return err
+		}
+		var references int64
+		if err := db.Model(&model.ProductionProject{}).Where("created_by = ? OR producer_id = ?", id, id).Count(&references).Error; err != nil {
+			return err
+		}
+		if references > 0 {
+			return ErrUserReferencedByProject
+		}
+		return db.Delete(&model.User{}, "id = ?", id).Error
+	})
 }
 
 // GetUserByLinuxDoID 根据 Linux.do ID 查询用户。

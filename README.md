@@ -4,7 +4,7 @@
 
 <h1 align="center">无限画布 (infinite-canvas)</h1>
 
-> 独立二开分支：本 fork 以管理层分派项目、项目内画面创作与资产创意、20人异步生产为目标。保留上游作者与许可证，具体当前范围见[团队版二开说明](docs/overview/team-fork.md)。下方保留上游功能和运行文档，不能视为团队版已验收。
+> 独立二开分支：本 fork 以管理层分派项目、项目内画面创作与资产创意、20人异步生产为目标。保留上游作者与许可证，U01项目创建分派与两工作台授权容器已完成限定本机验收；编辑内容与AI/积分尚未接入。具体范围见[团队版二开说明](docs/overview/team-fork.md)。下方保留上游功能和运行文档，不能视为团队版已验收。
 
 <p align="center">
   <a href="https://github.com/tigerowo/infinite-canvas"><img src="https://img.shields.io/github/stars/tigerowo/infinite-canvas?style=flat-square&logo=github" alt="GitHub stars"></a>

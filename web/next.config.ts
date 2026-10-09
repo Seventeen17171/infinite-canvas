@@ -18,6 +18,9 @@ export default function nextConfig(phase: string): NextConfig {
         outputFileTracingRoot: webDir,
         turbopack: { root: webDir },
         allowedDevOrigins: isDev ? ["*.*.*.*"] : [],
+        async redirects() {
+            return ["/", "/canvas/:path*", "/image/:path*", "/video/:path*", "/assets/:path*", "/asset-library/:path*", "/workflows/:path*", "/prompts/:path*"].map((source) => ({ source, destination: "/projects", permanent: false }));
+        },
         typescript: {
             ignoreBuildErrors: true,
         },

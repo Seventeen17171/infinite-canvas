@@ -2,7 +2,7 @@
 
 import { DeleteOutlined, EditOutlined, PlusOutlined, ReloadOutlined, SearchOutlined } from "@ant-design/icons";
 import { ProTable, type ProColumns } from "@ant-design/pro-components";
-import { Avatar, Button, Card, Col, Divider, Flex, Form, Input, InputNumber, Modal, Row, Select, Space, Tag, Tooltip, Typography } from "antd";
+import { Avatar, Button, Card, Checkbox, Col, Divider, Flex, Form, Input, InputNumber, Modal, Row, Select, Space, Tag, Tooltip, Typography } from "antd";
 import dayjs from "dayjs";
 import { useEffect, useState } from "react";
 
@@ -27,19 +27,44 @@ export default function AdminUsersPage() {
     const [keywordText, setKeywordText] = useState(keyword);
     const [editingUser, setEditingUser] = useState<Partial<AdminUser> | null>(null);
     const [deletingUser, setDeletingUser] = useState<AdminUser | null>(null);
+    const [saving, setSaving] = useState(false);
+    const selectedRole = Form.useWatch("role", form);
 
     useEffect(() => setKeywordText(keyword), [keyword]);
 
     useEffect(() => {
-        if (editingUser) form.setFieldsValue({ role: "user", status: "active", ...editingUser, password: "" });
+        if (editingUser) {
+            form.resetFields();
+            form.setFieldsValue({ role: "user", status: "active", canCreateProjects: false, canAssignProjects: false, ...editingUser, password: "" });
+        }
     }, [editingUser, form]);
 
+    useEffect(() => {
+        if (selectedRole === "admin") form.setFieldsValue({ canCreateProjects: true, canAssignProjects: true });
+    }, [form, selectedRole]);
+
     const saveUser = async () => {
-        const value = await form.validateFields();
-        const userValue = { ...value };
-        delete userValue.credits;
-        await saveAdminUser({ ...editingUser, ...userValue, password: value.password || undefined });
-        setEditingUser(null);
+        if (saving) return;
+        try {
+            const value = await form.validateFields();
+            setSaving(true);
+            await saveAdminUser({
+                id: editingUser?.id,
+                username: value.username,
+                password: value.password || undefined,
+                email: value.email || "",
+                displayName: value.displayName || "",
+                role: value.role,
+                status: value.status,
+                canCreateProjects: Boolean(value.canCreateProjects),
+                canAssignProjects: Boolean(value.canAssignProjects),
+            });
+            setEditingUser(null);
+        } catch {
+            /* 表单与服务器错误由各自入口展示，失败时保留输入。 */
+        } finally {
+            setSaving(false);
+        }
     };
 
     const saveCredits = async () => {
@@ -73,6 +98,18 @@ export default function AdminUsersPage() {
             render: (_, item) => <Tag color={item.role === "admin" ? "gold" : "default"}>{item.role === "admin" ? "管理员" : "用户"}</Tag>,
         },
         {
+            title: "项目权限",
+            key: "projectPermissions",
+            width: 170,
+            render: (_, item) => (
+                <Space size={4}>
+                    {item.role === "admin" || item.canCreateProjects ? <Tag>创建</Tag> : null}
+                    {item.role === "admin" || item.canAssignProjects ? <Tag>分派</Tag> : null}
+                    {item.role !== "admin" && !item.canCreateProjects && !item.canAssignProjects ? <Typography.Text type="secondary">制作人员</Typography.Text> : null}
+                </Space>
+            ),
+        },
+        {
             title: "状态",
             dataIndex: "status",
             width: 90,
@@ -103,10 +140,10 @@ export default function AdminUsersPage() {
             render: (_, item) => (
                 <Space size={4}>
                     <Tooltip title="编辑">
-                        <Button type="text" size="small" icon={<EditOutlined />} onClick={() => setEditingUser(item)} />
+                        <Button type="text" size="small" aria-label={`编辑用户 ${item.username}`} icon={<EditOutlined />} onClick={() => setEditingUser(item)} />
                     </Tooltip>
                     <Tooltip title="删除">
-                        <Button danger type="text" size="small" icon={<DeleteOutlined />} onClick={() => setDeletingUser(item)} />
+                        <Button danger type="text" size="small" aria-label={`删除用户 ${item.username}`} icon={<DeleteOutlined />} onClick={() => setDeletingUser(item)} />
                     </Tooltip>
                 </Space>
             ),
@@ -159,6 +196,7 @@ export default function AdminUsersPage() {
                     search={false}
                     defaultSize="middle"
                     tableLayout="fixed"
+                    scroll={{ x: 1220 }}
                     cardProps={{ variant: "borderless" }}
                     headerTitle={
                         <Space>
@@ -184,8 +222,22 @@ export default function AdminUsersPage() {
                 />
             </Flex>
 
-            <Modal title={editingUser?.id ? "编辑用户" : "新增用户"} open={Boolean(editingUser)} width={680} onCancel={() => setEditingUser(null)} onOk={() => void saveUser()} okText="保存" cancelText="取消" destroyOnHidden>
-                <Form form={form} layout="vertical" requiredMark={false}>
+            <Modal
+                title={editingUser?.id ? "编辑用户" : "新增用户"}
+                open={Boolean(editingUser)}
+                width={680}
+                onCancel={() => {
+                    if (!saving) setEditingUser(null);
+                }}
+                onOk={() => void saveUser()}
+                okText="保存"
+                cancelText="取消"
+                confirmLoading={saving}
+                cancelButtonProps={{ disabled: saving }}
+                keyboard={!saving}
+                destroyOnHidden
+            >
+                <Form form={form} layout="vertical" requiredMark={false} disabled={saving}>
                     <Typography.Text strong>基础信息</Typography.Text>
                     <Row gutter={14}>
                         <Col span={12}>
@@ -219,6 +271,19 @@ export default function AdminUsersPage() {
                             </Form.Item>
                         </Col>
                     </Row>
+                    <Divider style={{ margin: "4px 0 16px" }} />
+                    <Typography.Text strong>项目权限</Typography.Text>
+                    <Typography.Paragraph type="secondary" style={{ margin: "8px 0 12px" }}>
+                        {selectedRole === "admin" ? "管理员默认拥有创建和分派权限。" : "同时开启创建与分派后，该账号可以创建项目并指定制作负责人。"}
+                    </Typography.Paragraph>
+                    <Flex gap={24}>
+                        <Form.Item name="canCreateProjects" valuePropName="checked">
+                            <Checkbox disabled={selectedRole === "admin"}>允许创建项目</Checkbox>
+                        </Form.Item>
+                        <Form.Item name="canAssignProjects" valuePropName="checked">
+                            <Checkbox disabled={selectedRole === "admin"}>允许分派项目</Checkbox>
+                        </Form.Item>
+                    </Flex>
                     {editingUser?.id ? (
                         <>
                             <Divider style={{ margin: "4px 0 16px" }} />
@@ -246,8 +311,12 @@ export default function AdminUsersPage() {
                 onCancel={() => setDeletingUser(null)}
                 onOk={async () => {
                     if (!deletingUser) return;
-                    await deleteUser(deletingUser.id);
-                    setDeletingUser(null);
+                    try {
+                        await deleteUser(deletingUser.id);
+                        setDeletingUser(null);
+                    } catch {
+                        /* 关联项目等拒绝原因由请求入口展示，对话框保留。 */
+                    }
                 }}
                 okText="删除"
                 okButtonProps={{ danger: true }}

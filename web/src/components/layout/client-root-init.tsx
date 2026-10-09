@@ -26,6 +26,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     const openConfigDialog = useConfigStore((state) => state.openConfigDialog);
     const isLoginPage = pathname === "/login" || pathname === "/admin/login";
     const isTokenDanceCallback = pathname === "/tokendance/callback";
+    const isTeamPage = !pathname.startsWith("/admin");
     const adminRemoteTokenRef = useRef("");
     const accountSessionRef = useRef({ token, userId: user?.id || "" });
 
@@ -47,7 +48,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
     }, [hydrateUser, isLoginPage]);
 
 	useEffect(() => {
-		if (!token || adminRemoteTokenRef.current === token) return;
+		if (isTeamPage || !token || adminRemoteTokenRef.current === token) return;
 		if (isTokenDanceCallback) {
 			adminRemoteTokenRef.current = token;
 			return;
@@ -55,9 +56,10 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
 		if (user?.role !== "admin") return;
 		adminRemoteTokenRef.current = token;
 		if (channelMode !== "remote") updateConfig("channelMode", "remote");
-	}, [channelMode, isTokenDanceCallback, token, updateConfig, user?.role]);
+	}, [channelMode, isTeamPage, isTokenDanceCallback, token, updateConfig, user?.role]);
 
 	useLayoutEffect(() => {
+		if (isTeamPage) return;
 		const previous = accountSessionRef.current;
 		const userId = user?.id || "";
 		if ((previous.token && !token) || (previous.userId && userId && previous.userId !== userId)) {
@@ -66,10 +68,10 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
 			updateConfig("workflowSyncTouched", false);
 		}
 		accountSessionRef.current = { token, userId };
-	}, [token, updateConfig, user?.id]);
+	}, [isTeamPage, token, updateConfig, user?.id]);
 
 	useEffect(() => {
-        if (isTokenDanceCallback || !token || !user?.id) return;
+        if (isTeamPage || isTokenDanceCallback || !token || !user?.id) return;
         const accountToken = token;
         const accountId = user.id;
         const translationRevision = useChannelTranslationStore.getState().revisions[accountId] || 0;
@@ -117,10 +119,10 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         return () => {
             canceled = true;
         };
-    }, [isTokenDanceCallback, token, updateConfig, user?.id]);
+    }, [isTeamPage, isTokenDanceCallback, token, updateConfig, user?.id]);
 
     useEffect(() => {
-        if (handledConfigParams.current) return;
+        if (isTeamPage || handledConfigParams.current) return;
         const searchParams = new URLSearchParams(window.location.search);
         const baseUrl = searchParams.get("baseUrl") || searchParams.get("baseurl");
         const apiKey = searchParams.get("apiKey") || searchParams.get("apikey");
@@ -141,7 +143,7 @@ export function ClientRootInit({ children }: { children: ReactNode }) {
         if (baseUrl) updateConfig("baseUrl", baseUrl);
         if (apiKey) updateConfig("apiKey", apiKey);
         openConfigDialog(false);
-    }, [message, openConfigDialog, publicSettings, updateConfig]);
+    }, [isTeamPage, message, openConfigDialog, publicSettings, updateConfig]);
 
     return <>{children}</>;
 }

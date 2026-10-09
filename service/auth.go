@@ -14,11 +14,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 	"github.com/tigerowo/infinite-canvas/config"
 	"github.com/tigerowo/infinite-canvas/model"
 	"github.com/tigerowo/infinite-canvas/repository"
-	"github.com/golang-jwt/jwt/v5"
-	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
 )
 
@@ -117,11 +117,13 @@ func Login(username string, password string) (model.AuthSession, error) {
 		return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
 	}
 	normalizeUserDefaults(&user)
-	user.LastLoginAt = now()
-	user.UpdatedAt = now()
-	user, err = repository.SaveUser(user)
+	timestamp := now()
+	user, err = repository.UpdateUserFields(user.ID, map[string]any{"last_login_at": timestamp, "updated_at": timestamp})
 	if err != nil {
 		return model.AuthSession{}, err
+	}
+	if user.Status == model.UserStatusBan {
+		return model.AuthSession{}, safeMessageError{message: "账号已被禁用"}
 	}
 	return newSession(user)
 }
@@ -199,9 +201,16 @@ func LoginWithLinuxDo(r *http.Request, code string, state string) (model.AuthSes
 	user.UpdatedAt = now()
 	extra, _ := json.Marshal(userExtra{LinuxDo: profile})
 	user.Extra = string(extra)
-	user, err = repository.SaveUser(user)
+	if ok {
+		user, err = repository.UpdateUserFields(user.ID, map[string]any{"display_name": user.DisplayName, "avatar_url": user.AvatarURL, "last_login_at": user.LastLoginAt, "updated_at": user.UpdatedAt, "extra": user.Extra})
+	} else {
+		user, err = repository.SaveUser(user)
+	}
 	if err != nil {
 		return model.AuthSession{}, redirect, err
+	}
+	if user.Status == model.UserStatusBan {
+		return model.AuthSession{}, redirect, safeMessageError{message: "账号已被禁用"}
 	}
 	session, err := newSession(user)
 	return session, redirect, err
@@ -244,6 +253,8 @@ func ListUsers(q model.Query) (model.UserList, error) {
 	for i := range users {
 		users[i].Password = ""
 		normalizeUserDefaults(&users[i])
+		users[i].CanCreateProjects = users[i].MayCreateProjects()
+		users[i].CanAssignProjects = users[i].MayAssignProjects()
 	}
 	return model.UserList{Items: users, Total: int(total)}, nil
 }
@@ -261,6 +272,9 @@ func SaveUser(user model.User, password string) (model.User, error) {
 	}
 	if user.Status == "" {
 		user.Status = model.UserStatusActive
+	}
+	if (user.Role != model.UserRoleUser && user.Role != model.UserRoleAdmin) || (user.Status != model.UserStatusActive && user.Status != model.UserStatusBan) {
+		return user, projectError(http.StatusBadRequest, "角色或账号状态无效")
 	}
 	if saved, ok, err := repository.GetUserByUsername(user.Username); err != nil {
 		return user, err
@@ -290,6 +304,8 @@ func SaveUser(user model.User, password string) (model.User, error) {
 			user.LinuxDoID = saved.LinuxDoID
 		}
 		user.LastLoginAt = saved.LastLoginAt
+	} else {
+		return user, projectError(http.StatusBadRequest, "用户不存在")
 	}
 	if password != "" {
 		hash, err := hashPassword(password)
@@ -319,7 +335,7 @@ func AdjustUserCredits(id string, credits float64) (model.User, error) {
 	oldCredits := user.Credits
 	user.Credits = credits
 	user.UpdatedAt = now()
-	user, err = repository.SaveUser(user)
+	user, err = repository.UpdateUserFields(id, map[string]any{"credits": credits, "updated_at": user.UpdatedAt})
 	if err == nil && oldCredits != credits {
 		_, err = repository.SaveCreditLog(model.CreditLog{
 			ID:        newID("credit"),
@@ -416,7 +432,11 @@ func DeleteCreditLog(id string) error {
 }
 
 func DeleteUser(id string) error {
-	return repository.DeleteUser(id)
+	err := repository.DeleteUser(id)
+	if errors.Is(err, repository.ErrUserReferencedByProject) {
+		return projectError(http.StatusConflict, "该账号仍被项目引用，不能删除")
+	}
+	return err
 }
 
 func GuestUser() model.AuthUser {

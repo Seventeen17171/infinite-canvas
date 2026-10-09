@@ -34,6 +34,9 @@ description: 当前后端主要数据表与字段说明
 - `comfy_bridges`
 - `comfy_bridge_requests`
 - `canvas_projects`
+- `production_projects`
+- `production_workspaces`
+- `project_requests`
 - `user_configs`
 - `storage_objects`
 
@@ -52,6 +55,8 @@ description: 当前后端主要数据表与字段说明
 | `display_name` | string | 昵称 |
 | `avatar_url` | string | 头像地址 |
 | `role` | string | 角色：`user`、`admin` |
+| `can_create_projects` | boolean | 普通账号项目创建权限，默认 false；管理员有效权限为 true |
+| `can_assign_projects` | boolean | 普通账号项目分派权限，默认 false；管理员有效权限为 true |
 | `credits` | decimal(20,2) | 算力点余额 |
 | `aff_code` | string | 用户自己的邀请码，唯一索引 |
 | `aff_count` | number | 已邀请用户数量，冗余统计字段 |
@@ -64,6 +69,45 @@ description: 当前后端主要数据表与字段说明
 | `extra` | json | 扩展信息，第三方资料按平台命名空间保存，如 `linuxDo` |
 | `created_at` | string | 创建时间 |
 | `updated_at` | string | 更新时间 |
+
+### production_projects
+
+团队业务项目，区别于用户个人 `canvas_projects`。读取只允许创建者与当前制作负责人；管理员身份不额外授予全项目读取。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 主键 |
+| `title` | string | 规范化后 1–80 字，无控制字符 |
+| `summary` | text | 最多 500 字，允许正常换行 |
+| `created_by` | string | 由服务端当前账号写入，索引 |
+| `producer_id` | string | 当前有效普通账号制作负责人，索引 |
+| `revision` | int64 | 初始 1，条件改派成功后递增 |
+| `created_at` / `updated_at` | string | UTC 时间 |
+
+创建和改派事务重新核对权限、账号与负责人状态；改派按 `id + revision` 条件更新。被项目引用的创建者或当前负责人不能删除。账号禁用与权限撤销由请求时服务端重新读取生效。
+
+### production_workspaces
+
+项目内两个工作台的身份元数据，本阶段不保存画布节点、图片历史或资产内容。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 独立工作台主键 |
+| `project_id` | string | 项目 ID，与 kind 组成唯一索引 |
+| `kind` | string | `canvas` 或 `assets` |
+| `created_at` | string | 创建时间 |
+
+### project_requests
+
+创建幂等记录，与项目和两个工作台原子写入。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `actor_id` / `request_id` | string | 当前账号与规范化 UUID 组成联合主键 |
+| `payload_hash` | string | 规范化名称、说明与负责人的 SHA-256 摘要 |
+| `project_id` | string | 已创建项目 ID |
+
+同键同内容返回原项目，同键不同内容返回冲突。SQLite 使用单连接、WAL 和 5000 ms 忙等待，限定本机短元数据事务；PostgreSQL/MySQL 的账号行按 ID 排序加锁，不把该配置当作生产多进程或 AI 容量验证。登录只定向更新登录/资料字段，原管理员积分调整只定向更新余额/时间，避免旧快照回写项目权限；积分日志规则仍沿用原实现，本阶段未实现新账本。
 
 ### user_configs
 

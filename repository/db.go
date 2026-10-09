@@ -64,6 +64,22 @@ func DB() (*gorm.DB, error) {
 		if dbErr != nil {
 			return
 		}
+		if driver == "sqlite" {
+			var sqlDB *sql.DB
+			sqlDB, dbErr = db.DB()
+			if dbErr != nil {
+				return
+			}
+			// One local metadata connection avoids concurrent SQLite write upgrades.
+			sqlDB.SetMaxOpenConns(1)
+			sqlDB.SetMaxIdleConns(1)
+			if dbErr = db.Exec("PRAGMA journal_mode = WAL").Error; dbErr != nil {
+				return
+			}
+			if dbErr = db.Exec("PRAGMA busy_timeout = 5000").Error; dbErr != nil {
+				return
+			}
+		}
 		dbErr = db.AutoMigrate(
 			&model.User{},
 			&model.CreditLog{},
@@ -82,6 +98,9 @@ func DB() (*gorm.DB, error) {
 			&model.CanvasImageTask{},
 			&model.CanvasAudioTask{},
 			&model.CanvasProject{},
+			&model.ProductionProject{},
+			&model.ProductionWorkspace{},
+			&model.ProjectRequest{},
 			&model.ComfyBridge{},
 			&model.ComfyBridgeRequest{},
 		)

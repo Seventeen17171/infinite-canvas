@@ -10,6 +10,8 @@ export type AuthUser = {
     displayName: string;
     avatarUrl: string;
     role: UserRole;
+    canCreateProjects: boolean;
+    canAssignProjects: boolean;
     credits: number;
     createdAt: string;
     updatedAt: string;

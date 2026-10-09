@@ -6,6 +6,7 @@ import { App } from "antd";
 
 import { adjustAdminUserCredits, deleteAdminUser, fetchAdminUsers, saveAdminUser, type AdminUser } from "@/services/api/admin";
 import { useUserStore } from "@/stores/use-user-store";
+import { fetchCurrentUser } from "@/services/api/auth";
 
 const defaultPageSize = 10;
 
@@ -27,7 +28,13 @@ export function useAdminUsers() {
 
     const saveMutation = useMutation({
         mutationFn: (user: Partial<AdminUser> & { password?: string }) => saveAdminUser(token, user),
-        onSuccess: async (_, user) => {
+        onSuccess: async (saved, user) => {
+            const session = useUserStore.getState();
+            if (session.token !== token) return;
+            if (saved.id === session.user?.id) {
+                const fresh = await fetchCurrentUser(token);
+                if (useUserStore.getState().token === token) useUserStore.getState().setSession(token, fresh);
+            }
             await queryClient.invalidateQueries({ queryKey: ["admin", "users"] });
             message.success(user.id ? "用户已保存" : "用户已新增");
         },

@@ -21,6 +21,8 @@ export type AdminUser = {
     displayName: string;
     avatarUrl: string;
     role: "user" | "admin";
+    canCreateProjects: boolean;
+    canAssignProjects: boolean;
     credits: number;
     affCode: string;
     affCount: number;

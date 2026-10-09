@@ -2,60 +2,34 @@
 
 import { useEffect, type ReactNode } from "react";
 import { usePathname, useRouter } from "next/navigation";
-
-import { AppTopNav } from "@/components/layout/app-top-nav";
-import { fetchUserConfig } from "@/services/api/user-config";
+import { Spin } from "antd";
 import { useUserStore } from "@/stores/use-user-store";
-
-const protectedPrefixes = ["/asset-library"];
 
 export default function UserLayout({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const router = useRouter();
+    const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
-    const isProtectedPage = protectedPrefixes.some((prefix) => pathname === prefix || pathname.startsWith(`${prefix}/`));
+    const publicPage = pathname === "/login" || pathname === "/tokendance/callback";
+    const projectPage = pathname === "/projects" || pathname.startsWith("/projects/");
 
     useEffect(() => {
-        if (!isReady || !isProtectedPage || user) return;
-        router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
-    }, [isProtectedPage, isReady, pathname, router, user]);
+        if (!isReady || publicPage) return;
+        if (!projectPage) router.replace("/projects");
+        else if (!token || !user) router.replace(`/login?redirect=${encodeURIComponent(pathname)}`);
+    }, [isReady, pathname, projectPage, publicPage, router, token, user]);
 
-    useEffect(() => {
-        if (!isReady || !user) return;
-        const token = useUserStore.getState().token;
-        if (!token) return;
-        let cancelled = false;
-        let unsubscribeHydration = () => { };
-        const isCurrentSession = () => !cancelled && useUserStore.getState().token === token;
-        fetchUserConfig(token).then(async (config) => {
-            if (!isCurrentSession()) return;
-            const syncEnabled = config.syncCapabilities?.userData === true;
-            const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
-            if (!isCurrentSession()) return;
-            const canvasStore = useCanvasStore.getState();
-            canvasStore.setSyncEnabled(syncEnabled);
-            const syncCanvas = () => {
-                unsubscribeHydration();
-                if (isCurrentSession()) void useCanvasStore.getState().syncWithRemote(token, true);
-            };
-            if (syncEnabled) {
-                if (useCanvasStore.persist.hasHydrated()) syncCanvas();
-                else unsubscribeHydration = useCanvasStore.persist.onFinishHydration(syncCanvas);
-            }
-            const { useAssetStore } = await import("@/stores/use-asset-store");
-            if (isCurrentSession()) void useAssetStore.getState().hydrateAccountAssets(token, syncEnabled);
-        }).catch(() => { });
-        return () => {
-            cancelled = true;
-            unsubscribeHydration();
-        };
-    }, [isReady, user]);
-
+    const allowed = publicPage || (isReady && projectPage && Boolean(token && user));
     return (
         <div className="flex h-dvh flex-col overflow-hidden bg-background text-foreground">
-            <AppTopNav />
-            <div className="min-h-0 flex-1 overflow-hidden">{isProtectedPage && (!isReady || !user) ? null : children}</div>
+            {allowed ? (
+                children
+            ) : (
+                <div className="flex h-full items-center justify-center">
+                    <Spin aria-label="正在加载账号" />
+                </div>
+            )}
         </div>
     );
 }

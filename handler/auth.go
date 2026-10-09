@@ -2,6 +2,7 @@ package handler
 
 import (
 	"encoding/json"
+	"errors"
 	"net/http"
 	"net/url"
 	"strings"
@@ -21,13 +22,15 @@ type registerRequest struct {
 }
 
 type saveUserRequest struct {
-	ID          string           `json:"id"`
-	Username    string           `json:"username"`
-	Password    string           `json:"password"`
-	Email       string           `json:"email"`
-	DisplayName string           `json:"displayName"`
-	Role        model.UserRole   `json:"role"`
-	Status      model.UserStatus `json:"status"`
+	ID                string           `json:"id"`
+	Username          string           `json:"username"`
+	Password          string           `json:"password"`
+	Email             string           `json:"email"`
+	DisplayName       string           `json:"displayName"`
+	Role              model.UserRole   `json:"role"`
+	Status            model.UserStatus `json:"status"`
+	CanCreateProjects bool             `json:"canCreateProjects"`
+	CanAssignProjects bool             `json:"canAssignProjects"`
 }
 
 type adjustUserCreditsRequest struct {
@@ -108,16 +111,25 @@ func AdminUsers(w http.ResponseWriter, r *http.Request) {
 
 func AdminSaveUser(w http.ResponseWriter, r *http.Request) {
 	var request saveUserRequest
-	_ = json.NewDecoder(r.Body).Decode(&request)
+	if !decodeProductionRequest(w, r, &request) {
+		return
+	}
 	user, err := service.SaveUser(model.User{
-		ID:          request.ID,
-		Username:    request.Username,
-		Email:       request.Email,
-		DisplayName: request.DisplayName,
-		Role:        request.Role,
-		Status:      request.Status,
+		ID:                request.ID,
+		Username:          request.Username,
+		Email:             request.Email,
+		DisplayName:       request.DisplayName,
+		Role:              request.Role,
+		Status:            request.Status,
+		CanCreateProjects: request.CanCreateProjects,
+		CanAssignProjects: request.CanAssignProjects,
 	}, request.Password)
 	if err != nil {
+		var validation service.ProductionError
+		if errors.As(err, &validation) {
+			failProduction(w, err)
+			return
+		}
 		FailError(w, err)
 		return
 	}
@@ -179,6 +191,11 @@ func loginRedirect(r *http.Request, redirect string, token string, message strin
 
 func AdminDeleteUser(w http.ResponseWriter, r *http.Request, id string) {
 	if err := service.DeleteUser(id); err != nil {
+		var constraint service.ProductionError
+		if errors.As(err, &constraint) {
+			failProduction(w, err)
+			return
+		}
 		FailError(w, err)
 		return
 	}

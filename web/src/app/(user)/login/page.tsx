@@ -2,12 +2,12 @@
 
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { App, Button, Form, Input, Segmented, Space } from "antd";
-import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useEffect, useRef, useState } from "react";
 
 import { fetchCurrentUser } from "@/services/api/auth";
 import { useConfigStore } from "@/stores/use-config-store";
-import { useUserStore } from "@/stores/use-user-store";
+import { StaleSessionError, useUserStore } from "@/stores/use-user-store";
 
 type LoginFormValues = {
     username: string;
@@ -20,9 +20,9 @@ type LoginFormValues = {
 function safeRedirect(value: string | null): string {
     const cleaned = (value ?? "").replace(/[\t\n\r]/g, "");
     if (!cleaned.startsWith("/") || cleaned.startsWith("//") || cleaned.startsWith("/\\")) {
-        return "/";
+        return "/projects";
     }
-    return cleaned;
+    return cleaned === "/" || cleaned === "/login" ? "/projects" : cleaned;
 }
 
 export default function LoginPage() {
@@ -36,6 +36,7 @@ export default function LoginPage() {
 function LoginContent() {
     const { message } = App.useApp();
     const router = useRouter();
+    const pathname = usePathname();
     const searchParams = useSearchParams();
     const login = useUserStore((state) => state.login);
     const register = useUserStore((state) => state.register);
@@ -45,25 +46,56 @@ function LoginContent() {
     const allowRegister = useConfigStore((state) => state.publicSettings?.auth?.allowRegister !== false);
     const [mode, setMode] = useState<"login" | "register">("login");
     const redirect = safeRedirect(searchParams.get("redirect"));
+    const query = searchParams.toString();
+    const currentRoute = useRef({ pathname, query });
+    currentRoute.current = { pathname, query };
+    const mounted = useRef(true);
+    const pendingAuthentication = useRef<number | null>(null);
+    const submitAttempt = useRef(0);
 
     useEffect(() => {
-        const token = searchParams.get("token");
-        const error = searchParams.get("error");
+        mounted.current = true;
+        return () => {
+            mounted.current = false;
+            submitAttempt.current++;
+            if (pendingAuthentication.current !== null) useUserStore.getState().cancelAuthentication(pendingAuthentication.current);
+        };
+    }, []);
+
+    useEffect(() => {
+        const params = new URLSearchParams(query);
+        const token = params.get("token");
+        const error = params.get("error");
         if (error) message.error(error);
         if (!token) return;
-        void fetchCurrentUser(token).then((user) => {
-            setSession(token, user);
-            message.success("登录成功");
-            router.replace(redirect);
-            router.refresh();
-        });
-    }, [message, redirect, router, searchParams, setSession]);
+        let active = true;
+        const session = useUserStore.getState();
+        const isCurrent = () =>
+            active && mounted.current && currentRoute.current.pathname === pathname && currentRoute.current.query === query && useUserStore.getState().sessionRevision === session.sessionRevision && useUserStore.getState().token === session.token;
+        void fetchCurrentUser(token)
+            .then((user) => {
+                if (!isCurrent()) return;
+                setSession(token, user);
+                message.success("登录成功");
+                router.replace(redirect);
+                router.refresh();
+            })
+            .catch((failure) => {
+                if (isCurrent()) message.error(failure instanceof Error ? failure.message : "登录失败");
+            });
+        return () => {
+            active = false;
+        };
+    }, [message, pathname, query, redirect, router, setSession]);
 
     useEffect(() => {
         if (!allowRegister && mode === "register") setMode("login");
     }, [allowRegister, mode]);
 
     const submit = async (values: LoginFormValues) => {
+        const attempt = ++submitAttempt.current;
+        let revision: number | undefined;
+        const isCurrent = () => mounted.current && submitAttempt.current === attempt && currentRoute.current.pathname === pathname && currentRoute.current.query === query && (revision === undefined || useUserStore.getState().sessionRevision === revision);
         try {
             if (mode === "register" && !allowRegister) {
                 message.error("当前未开放注册");
@@ -74,13 +106,18 @@ function LoginContent() {
                 return;
             }
             const action = mode === "register" ? register : login;
-            const user = await action({ username: values.username, password: values.password });
+            const operation = action({ username: values.username, password: values.password });
+            revision = useUserStore.getState().sessionRevision;
+            pendingAuthentication.current = revision;
+            await operation;
+            if (!isCurrent()) return;
             message.success(mode === "register" ? "注册成功" : "登录成功");
             router.replace(redirect);
             router.refresh();
-            if (user.role !== "admin") router.replace("/");
         } catch (error) {
-            message.error(error instanceof Error ? error.message : "登录失败");
+            if (isCurrent() && !(error instanceof StaleSessionError)) message.error(error instanceof Error ? error.message : "登录失败");
+        } finally {
+            if (pendingAuthentication.current === revision) pendingAuthentication.current = null;
         }
     };
 
@@ -97,7 +134,7 @@ function LoginContent() {
                         aria-label="无限画布"
                     />
                     <h1 className="text-3xl font-semibold tracking-normal text-stone-950 dark:text-stone-100">账号登录</h1>
-                    <p className="mt-3 text-base leading-7 text-stone-500 dark:text-stone-400">支持账号密码和 Linux.do 登录。</p>
+                    <p className="mt-3 text-base leading-7 text-stone-500 dark:text-stone-400">登录后进入获授权项目，开展画面与资产创作。</p>
                 </div>
 
                 <Form<LoginFormValues> layout="vertical" size="large" requiredMark={false} onFinish={submit}>
@@ -106,7 +143,14 @@ function LoginContent() {
                             block
                             value={mode}
                             onChange={(value) => setMode(value as "login" | "register")}
-                            options={allowRegister ? [{ label: "登录", value: "login" }, { label: "注册", value: "register" }] : [{ label: "登录", value: "login" }]}
+                            options={
+                                allowRegister
+                                    ? [
+                                          { label: "登录", value: "login" },
+                                          { label: "注册", value: "register" },
+                                      ]
+                                    : [{ label: "登录", value: "login" }]
+                            }
                         />
                     </Form.Item>
                     <Form.Item name="username" label={<span className="font-medium text-stone-800 dark:text-stone-200">用户名</span>} rules={[{ required: true, message: "请输入用户名" }]}>
