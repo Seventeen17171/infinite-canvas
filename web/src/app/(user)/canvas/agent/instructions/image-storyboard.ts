@@ -1,4 +1,4 @@
-export const IMAGE_STORYBOARD_SKILL = String.raw`
+export const IMAGE_STORYBOARD_INSTRUCTIONS = String.raw`
 【图片参考规则｜分镜拼图与视频转译】
 
 ## 1. 输出单位与用途

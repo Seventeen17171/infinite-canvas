@@ -1,5 +1,5 @@
-export const VIDEO_SKILL = String.raw`
-【视频与镜头 Skill｜生成、引用、声音、多镜头、续写与编辑】
+export const VIDEO_INSTRUCTIONS = String.raw`
+【视频与镜头创作指令｜生成、引用、声音、多镜头、续写与编辑】
 
 ## 1. 职责与真实能力边界
 
@@ -73,7 +73,7 @@ export const VIDEO_SKILL = String.raw`
 
 ### generateAudio=false
 
-- prompt 不要求模型产生声音；如需要后续独立声音，另用声音 Skill 创建 audio 节点。
+- prompt 不要求模型产生声音；如需要后续独立声音，另用声音创作指令创建 audio 节点。
 - 用户明确要求静音时直接 false。
 
 ### 当前模型不支持原生声音
@@ -177,7 +177,7 @@ sourceNodeIds 中三种媒体分别编号：
 - 简单快速请求可用清楚自然语言。
 - 精修片段加载单镜头结构。
 - sourceNodeIds 只包含真正作者文本；没有来源时不要附加无关节点。
-- 视频清晰度和尺寸使用当前画布 Agent 设置；时长和声音使用用户已确认信息及全局能力配置，缺少创作关键值时按本 Skill 询问。
+- 视频清晰度和尺寸使用当前画布 Agent 设置；时长和声音使用用户已确认信息及全局能力配置，缺少创作关键值时按本创作指令询问。
 - 没有参考时不写图片N/视频N/音频N。
 
 ## 10. 模式 2：让画布图片动起来

@@ -17,7 +17,7 @@ import type {
     CanvasAssistantReference,
 } from "../types";
 import type { CanvasAgentContext } from "./canvas-agent-context";
-import { buildCanvasAgentSkillPrompt } from "./canvas-agent-skills";
+import { buildCanvasAgentInstructions } from "./canvas-agent-instructions";
 import {
     compactCanvasAgentHistory,
     estimateCanvasAgentInputTokens,
@@ -25,7 +25,6 @@ import {
     serializeCanvasAgentMessagesForCheckpoint,
 } from "./canvas-agent-memory";
 import {
-    CANVAS_AGENT_SKILL_FILE_TOOL,
     CANVAS_AGENT_TOOLS,
     canvasAgentActionLabel,
     isCanvasAgentMediaAction,
@@ -49,7 +48,6 @@ export type RunCanvasAgentInput = {
     protocolMessages: CanvasAgentProtocolMessage[];
     userText: string;
     references: CanvasAssistantReference[];
-    activeSkillContents?: Array<{ id: string; source: "system" | "user"; name: string; content: string; hasFiles?: boolean }>;
     contextCheckpoint?: string;
     preferredJsonMode?: CanvasAgentJsonFallbackMode;
     getContext: (state: CanvasAgentState) => CanvasAgentContext;
@@ -94,9 +92,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         { role: "user" as const, content: buildUserContent(input.userText, input.references, input.config.textModel || input.config.model) },
     ];
     let contextCheckpoint = input.contextCheckpoint;
-    const activeSkillContents = input.activeSkillContents?.map((skill, index) => `【完整 Skill ${index + 1}：${skill.name}（${skill.source === "system" ? `系统 Skill ID：${skill.id}` : "用户 Skill"}）】\n${skill.content}`).join("\n\n");
-    const skillFileToolAvailable = Boolean(input.activeSkillContents?.some((skill) => skill.source === "system" && skill.hasFiles));
-    const agentTools = skillFileToolAvailable ? [...CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL] : CANVAS_AGENT_TOOLS;
+    const agentTools = CANVAS_AGENT_TOOLS;
 
     const emitCheckpoint = () => input.onCheckpoint?.({
         state,
@@ -127,11 +123,11 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
         throwIfAborted(input.signal);
         input.onEvent?.({ status: "thinking", label: step ? "正在根据画布结果继续" : "正在理解画布和创作目标" });
         const context = input.getContext(state);
-        let systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
+        let systemPrompt = buildCanvasAgentInstructions(state.phase, input.userText, context, contextCheckpoint);
         const nativeTools = toolMode === "native";
         const tools = nativeTools ? agentTools : [];
         if (estimateCanvasAgentInputTokens({ systemPrompt: canvasAgentSystemPrompt(input.config, systemPrompt, nativeTools ? [] : agentTools, nativeTools), messages: protocolMessages, tools }, canvasAgentTokenCalibrationKey(input.config)) >= MAX_AGENT_INPUT_TOKENS) {
-            if (await compactHistory()) systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
+            if (await compactHistory()) systemPrompt = buildCanvasAgentInstructions(state.phase, input.userText, context, contextCheckpoint);
         }
 
         const requestTurn = () => requestCanvasAgentTurn({
@@ -147,7 +143,7 @@ export async function runCanvasAgent(input: RunCanvasAgentInput): Promise<RunCan
             turn = await requestTurn();
         } catch (error) {
             if (!isCanvasAgentContextLimitError(error) || !(await compactHistory())) throw error;
-            systemPrompt = buildCanvasAgentSkillPrompt(state.phase, input.userText, context, activeSkillContents, contextCheckpoint, skillFileToolAvailable);
+            systemPrompt = buildCanvasAgentInstructions(state.phase, input.userText, context, contextCheckpoint);
             turn = await requestTurn();
         }
         toolMode = turn.toolMode;

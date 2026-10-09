@@ -1,4 +1,4 @@
-export const VIDEO_EDITING_SKILL = String.raw`
+export const VIDEO_EDITING_INSTRUCTIONS = String.raw`
 【视频参考规则｜编辑、重绘、替换与动作改写】
 
 ## 1. 前提与事实

@@ -1,4 +1,4 @@
-export const VIDEO_EXTENSION_SKILL = String.raw`
+export const VIDEO_EXTENSION_INSTRUCTIONS = String.raw`
 【视频参考规则｜续写、前传、连续片段与依赖链】
 
 ## 1. 前提

@@ -34,10 +34,8 @@ import { ImageGenerationPending } from "@/components/image-generation-pending";
 import { useCopyText } from "@/hooks/use-copy-text";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { cn } from "@/lib/utils";
-import { fetchSystemAgentSkillFile } from "@/services/api/agent-skills";
 import { imageToDataUrl } from "@/services/image-storage";
 import { useAssetStore } from "@/stores/use-asset-store";
-import { useAgentSkillStore } from "@/stores/use-agent-skill-store";
 import { useConfigStore, useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 import { createCanvasAgentState, runCanvasAgent } from "../agent/canvas-agent-runtime";
@@ -45,10 +43,8 @@ import { useCodexAgent } from "../agent/use-codex-agent";
 import type { CanvasAgentContext } from "../agent/canvas-agent-context";
 import type { CanvasAgentAction, CanvasAgentToolResult } from "../agent/canvas-agent-tools";
 import {
-    MAX_CANVAS_AGENT_SKILLS,
     CanvasNodeType,
     type CanvasAgentConfig,
-    type CanvasAgentSkillSelection,
     type CanvasAgentState,
     type CanvasAssistantMessage,
     type CanvasAssistantReference,
@@ -99,7 +95,7 @@ type CanvasAssistantPanelProps = {
     onExecuteAction: (action: CanvasAgentAction, messageReferenceNodeIds: string[]) => Promise<CanvasAgentToolResult>;
     onCollapseStart: () => void;
     onCollapse: () => void;
-    initialRequest?: { prompt: string; references: CanvasAssistantReference[]; skills: CanvasAgentSkillSelection[] } | null;
+    initialRequest?: { prompt: string; references: CanvasAssistantReference[] } | null;
     onInitialRequestConsumed?: () => void;
 };
 
@@ -154,13 +150,12 @@ export function CanvasAssistantPanel({
     const [closing, setClosing] = useState(false);
     const [resizing, setResizing] = useState(false);
     const [composerReferenceIds, setComposerReferenceIds] = useState<string[]>([]);
-    const [selectedSkills, setSelectedSkills] = useState<CanvasAgentSkillSelection[]>([]);
     const [removedReferenceIds, setRemovedReferenceIds] = useState<Set<string>>(new Set());
     const [pendingDelete, setPendingDelete] = useState<PendingDeleteConfirmation | null>(null);
     const [codexConfirmations, setCodexConfirmations] = useState<CodexConfirmation[]>([]);
     const [initialSession] = useState(() => createSession(mode));
     const lastSessionIds = useRef<Partial<Record<"api" | "codex", string>>>({});
-    const drafts = useRef<Partial<Record<"api" | "codex", { prompt: string; references: string[]; skills: CanvasAgentSkillSelection[] }>>>({});
+    const drafts = useRef<Partial<Record<"api" | "codex", { prompt: string; references: string[] }>>>({});
     const safeSessions = sessions.length ? sessions : [initialSession];
     const visibleSessions = safeSessions.filter((session) => (session.provider || "api") === mode);
     const rememberedId = lastSessionIds.current[mode] || activeSessionId;
@@ -244,7 +239,6 @@ export function CanvasAssistantPanel({
     };
 
     const startChatSession = () => {
-        setSelectedSkills([]);
         if (activeSession && activeSession.messages.length === 0) {
             commitSessions(sessionsRef.current, activeSession.id);
             return;
@@ -261,46 +255,12 @@ export function CanvasAssistantPanel({
             || next.find((session) => (session.provider || "api") === mode);
         if (!selected) { selected = createSession(mode); next.unshift(selected); }
         commitSessions(next, selected.id);
-        if (!next.some((session) => (session.provider || "api") === mode && session.messages.length)) {
-            const draft = drafts.current[mode];
-            if (draft?.skills === selectedSkills) draft.skills = [];
-            setSelectedSkills((current) => current === selectedSkills ? [] : current);
-        }
         cleanupImages({ sessions: next });
         setCheckedChatIds((previous) => previous.filter((id) => !ids.includes(id)));
     };
 
-    const selectComposerSkill = (skill: CanvasAgentSkillSelection) => {
-        const existingIndex = selectedSkills.findIndex((selected) => selected.id === skill.id && selected.source === skill.source);
-        if (existingIndex >= 0) {
-            setSelectedSkills(selectedSkills.map((selected, index) => (index === existingIndex ? skill : selected)));
-            return;
-        }
-        if (selectedSkills.length >= MAX_CANVAS_AGENT_SKILLS) {
-            appMessage.warning(`最多选择 ${MAX_CANVAS_AGENT_SKILLS} 个 Skill`);
-            return;
-        }
-        setSelectedSkills([...selectedSkills, skill]);
-    };
-
-    const removeComposerSkill = (id: string, source: CanvasAgentSkillSelection["source"]) => {
-        setSelectedSkills((current) => current.filter((skill) => skill.id !== id || skill.source !== source));
-    };
-
-    const executeCanvasTool = async (action: CanvasAgentAction, messageReferenceNodeIds: string[], activeSkills: CanvasAgentSkillSelection[], provider: "api" | "codex", signal: AbortSignal): Promise<CanvasAgentToolResult> => {
+    const executeCanvasTool = async (action: CanvasAgentAction, messageReferenceNodeIds: string[], provider: "api" | "codex", signal: AbortSignal): Promise<CanvasAgentToolResult> => {
         signal.throwIfAborted();
-        if (action.name === "read_skill_file") {
-            const skillId = typeof action.arguments.skillId === "string" ? action.arguments.skillId : "";
-            const filePath = typeof action.arguments.path === "string" ? action.arguments.path : "";
-            const activeSkill = activeSkills.find((skill) => skill.id === skillId && skill.source === "system");
-            if (!activeSkill) return { ok: false, code: "skill_not_active", message: "只能读取当前激活的系统 Skill 文件" };
-            try {
-                const file = await fetchSystemAgentSkillFile(skillId, filePath);
-                return { ok: true, skillId, path: file.path, content: file.content };
-            } catch (error) {
-                return { ok: false, code: "skill_file_not_found", message: error instanceof Error ? error.message : "Skill 文件读取失败" };
-            }
-        }
         if (action.name !== "delete_node") return onExecuteAction(action, messageReferenceNodeIds);
         const nodeId = typeof action.arguments.nodeId === "string" ? action.arguments.nodeId : "";
         const node = nodes.find((item) => item.id === nodeId);
@@ -339,7 +299,7 @@ export function CanvasAssistantPanel({
         onBootstrap: () => { if (mode === "api") switchMode(); else setView("chat"); },
         executeTool: async (action, signal) => {
             if (action.name === "arrange_nodes" && !(await confirmCodex("允许 Codex 整理画布？", <pre className="whitespace-pre-wrap break-words text-xs">{JSON.stringify(action.arguments, null, 2)}</pre>, signal))) return { ok: false, code: "action_not_requested", message: "未允许整理画布" };
-            return executeCanvasTool(action, [], [], "codex", signal);
+            return executeCanvasTool(action, [], "codex", signal);
         },
         onApproval: async ({ method, params }, signal) => {
             if (method === "mcpServer/elicitation/request") {
@@ -366,7 +326,7 @@ export function CanvasAssistantPanel({
         if (isRunning) return;
         const next = mode === "api" ? "codex" : "api";
         if (activeSessionIdRef.current) lastSessionIds.current[mode] = activeSessionIdRef.current;
-        drafts.current[mode] = { prompt, references: composerReferenceIds, skills: selectedSkills };
+        drafts.current[mode] = { prompt, references: composerReferenceIds };
         const nextSessions = sessionsRef.current.filter((session) => (session.provider || "api") === next);
         commitSessions(sessionsRef.current, nextSessions.find((session) => session.id === lastSessionIds.current[next])?.id || nextSessions[0]?.id || null);
         onAgentConfigChange({ mode: next });
@@ -374,7 +334,6 @@ export function CanvasAssistantPanel({
         setPrompt(drafts.current[next]?.prompt || "");
         setComposerReferenceIds(drafts.current[next]?.references || []);
         setRemovedReferenceIds(new Set());
-        setSelectedSkills(drafts.current[next]?.skills || []);
         setCheckedChatIds([]);
         setDeleteChatIds([]);
     };
@@ -401,49 +360,19 @@ export function CanvasAssistantPanel({
         </>
     ) : undefined;
 
-    const sendMessage = async (text: string, savedReferences?: CanvasAssistantReference[], skillOverride?: CanvasAgentSkillSelection[] | null, showSelectedSkills = skillOverride === undefined && selectedSkills.length > 0) => {
+    const sendMessage = async (text: string, savedReferences?: CanvasAssistantReference[]) => {
         if (abortRef.current) return;
         if (mode === "codex" && codex.status !== "ready") { setView("connect"); appMessage.info("请先连接本地 Codex 服务"); return; }
         const session = activeSession || createSession(mode);
-        const activeSkills = skillOverride !== undefined ? skillOverride || [] : selectedSkills.length ? selectedSkills : session.activeSkills || [];
-        let activeSkillContents: Array<{ id: string; source: CanvasAgentSkillSelection["source"]; name: string; content: string; hasFiles?: boolean }> = [];
-
-        if (activeSkills.length) {
-            const skillStore = useAgentSkillStore.getState();
-            if (!skillStore.systemSkills.length && !skillStore.userSkills.length) {
-                try {
-                    await skillStore.loadSkills();
-                } catch (error) {
-                    appMessage.error(error instanceof Error ? error.message : "Skill 加载失败");
-                    return;
-                }
-            }
-            const availableSkills = [...useAgentSkillStore.getState().systemSkills, ...useAgentSkillStore.getState().userSkills];
-            const latestSkills = activeSkills.map((selected) => availableSkills.find((skill) => skill.id === selected.id && skill.source === selected.source && skill.enabled));
-            const unavailableSkill = activeSkills.find((_, index) => !latestSkills[index]);
-            if (unavailableSkill) {
-                appMessage.error(`Skill「${unavailableSkill.name}」已不可用，请重新选择`);
-                return;
-            }
-            activeSkillContents = latestSkills.map((skill) => ({ id: skill!.id, source: skill!.source, name: skill!.name, content: skill!.content, hasFiles: skill!.hasFiles }));
-        }
-
         if (!activeSession) commitSessions([session, ...sessionsRef.current], session.id);
-        updateSession(session.id, (current) => ({
-            ...current,
-            activeSkills,
-            updatedAt: new Date().toISOString(),
-        }));
-
         const references = savedReferences || composerReferences;
         const messageReferenceNodeIds = references.map((reference) => reference.id);
-        const userMessage: CanvasAssistantMessage = { id: nanoid(), role: "user", text, references, skills: activeSkills, skillsSelected: showSelectedSkills, status: "success" };
+        const userMessage: CanvasAssistantMessage = { id: nanoid(), role: "user", text, references, status: "success" };
         const assistantId = nanoid();
         appendMessage(session.id, userMessage);
         appendMessage(session.id, { id: assistantId, role: "assistant", text: "", status: "thinking", activity: "正在理解画布和创作目标" });
         setPrompt("");
         setComposerReferenceIds([]);
-        setSelectedSkills([]);
         setRemovedReferenceIds(new Set(selectedNodeIds));
 
         const requestConfig = {
@@ -490,11 +419,10 @@ export function CanvasAssistantPanel({
                 protocolMessages: session.protocolMessages,
                 userText: text,
                 references: modelReferences,
-                activeSkillContents,
                 contextCheckpoint: session.contextCheckpoint,
                 preferredJsonMode: session.jsonToolFallbackKey === jsonToolFallbackKey ? session.jsonToolFallbackMode || "structured-json" : undefined,
                 getContext: getAgentContext,
-                executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, activeSkills, mode, signal),
+                executeAction: (action, signal = controller.signal) => executeCanvasTool(action, messageReferenceNodeIds, mode, signal),
                 signal: controller.signal,
                 onEvent: (event) => updateMessage(session.id, assistantId, { status: event.status, activity: event.label }),
                 onCheckpoint: (checkpoint) =>
@@ -537,7 +465,7 @@ export function CanvasAssistantPanel({
         if (!initialRequest || consumedInitialRequestRef.current === initialRequest) return;
         consumedInitialRequestRef.current = initialRequest;
         onInitialRequestConsumed?.();
-        void sendMessage(initialRequest.prompt, initialRequest.references, initialRequest.skills, initialRequest.skills.length > 0);
+        void sendMessage(initialRequest.prompt, initialRequest.references);
     }, [initialRequest, onInitialRequestConsumed]);
 
     const submit = async (nextPrompt = prompt, referenceIds = composerReferenceIds) => {
@@ -549,7 +477,7 @@ export function CanvasAssistantPanel({
     const retryMessage = (message: CanvasAssistantMessage) => {
         const index = messages.findIndex((item) => item.id === message.id);
         const user = messages.slice(0, index).findLast((item) => item.role === "user");
-        if (user) void sendMessage(user.text, user.references, user.skills || []);
+        if (user) void sendMessage(user.text, user.references);
     };
 
     const startResize = () => {
@@ -646,7 +574,6 @@ export function CanvasAssistantPanel({
                             onToggleChecked={(id, checked) => setCheckedChatIds((previous) => (checked ? [...new Set([...previous, id])] : previous.filter((item) => item !== id)))}
                             onOpen={(id) => {
                                 commitSessions(sessionsRef.current, id);
-                                setSelectedSkills([]);
                                 setView("chat");
                             }}
                             onRename={(id, title) => updateSession(id, (session) => ({ ...session, title, updatedAt: new Date().toISOString() }))}
@@ -682,12 +609,9 @@ export function CanvasAssistantPanel({
                         references={composerReferences}
                         availableReferences={resourceReferences}
                         pendingReferences={pendingReferences}
-                        selectedSkills={selectedSkills}
                         agentConfig={agentConfig}
                         onAgentConfigChange={onAgentConfigChange}
                         onPromptChange={setPrompt}
-                        onSkillSelect={selectComposerSkill}
-                        onSkillRemove={removeComposerSkill}
                         onReferenceIdsChange={(ids) => {
                             consumedReferenceNodeClickVersionRef.current = referenceNodeClick.version;
                             const removedSelectedIds = composerReferenceIds.filter((id) => selectedNodeIds.has(id) && !ids.includes(id));
@@ -846,14 +770,11 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
             return <code {...props} className={className}>{children}</code>;
         },
     }), [nodeById, onFocusNode, theme]);
-    let previousUserSkills: CanvasAgentSkillSelection[] = [];
 
     return (
         <>
             {messages.map((message) => {
                 const running = message.status === "thinking" || message.status === "running";
-                const showSkills = message.skillsSelected ?? Boolean(message.skills?.length && !sameSkillSelections(message.skills, previousUserSkills));
-                if (message.role === "user") previousUserSkills = message.skills || [];
                 return (
                     <div key={message.id} className={cn("flex flex-col gap-2", message.role === "user" ? "items-end" : "items-start")}>
                         {message.text ? (
@@ -873,7 +794,7 @@ function AssistantMessages({ messages, nodeById, onFocusNode, onRetry, codexMode
                                         {codexMode ? "Codex" : "Agent"}
                                     </div>
                                 ) : null}
-                                {message.role === "assistant" ? <AssistantMarkdown components={markdownComponents}>{message.text}</AssistantMarkdown> : <UserMessageContent message={message} showSkills={showSkills} />}
+                                {message.role === "assistant" ? <AssistantMarkdown components={markdownComponents}>{message.text}</AssistantMarkdown> : <UserMessageContent message={message} />}
                             </div>
                         ) : null}
                         {running ? <ImageGenerationPending compact label={message.activity || "正在执行"} className="w-[250px] rounded-2xl border" /> : null}
@@ -944,16 +865,12 @@ function AssistantHistory({
     );
 }
 
-function UserMessageContent({ message, showSkills }: { message: CanvasAssistantMessage; showSkills: boolean }) {
+function UserMessageContent({ message }: { message: CanvasAssistantMessage }) {
     const references = useMemo(() => message.references?.map(assistantToPromptReference) || [], [message.references]);
-    return <CanvasPromptChipInput value={message.text} references={references} skills={showSkills ? message.skills : undefined} onChange={ignorePromptChange} readOnly />;
+    return <CanvasPromptChipInput value={message.text} references={references} onChange={ignorePromptChange} readOnly />;
 }
 
 function ignorePromptChange() {}
-
-function sameSkillSelections(left: CanvasAgentSkillSelection[] = [], right: CanvasAgentSkillSelection[] = []) {
-    return left.length === right.length && left.every((skill, index) => skill.id === right[index]?.id && skill.source === right[index]?.source);
-}
 
 function nodeToReference(node: CanvasNodeData, resource: CanvasResourceReference): CanvasAssistantReference | null {
     const content = assistantReferenceContentFromNode(node);

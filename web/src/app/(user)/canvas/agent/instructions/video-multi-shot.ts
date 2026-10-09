@@ -1,4 +1,4 @@
-export const VIDEO_MULTI_SHOT_SKILL = String.raw`
+export const VIDEO_MULTI_SHOT_INSTRUCTIONS = String.raw`
 【视频参考规则｜单片段多镜头、广告、品牌片、MV 与分镜动画】
 
 ## 1. 适用与跳过

@@ -1,9 +1,9 @@
-export const AUDIO_SKILL = String.raw`
-【声音 Skill｜角色音色、旁白音色与独立最终朗读】
+export const AUDIO_INSTRUCTIONS = String.raw`
+【声音创作指令｜角色音色、旁白音色与独立最终朗读】
 
 ## 1. 边界
 
-本 Skill 只创建独立 audio 节点：
+本创作指令只创建独立 audio 节点：
 
 - 角色可复用音色样本。
 - 旁白/VO 可复用音色样本。

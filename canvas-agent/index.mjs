@@ -164,7 +164,7 @@ async function startMcp() {
     server.setRequestHandler(ListToolsRequestSchema, async () => {
         try {
             const tools = await request(toolsPath);
-            return { tools: source === "codex" ? tools : tools.filter(({ name }) => name !== "set_agent_state" && name !== "read_skill_file") };
+            return { tools: source === "codex" ? tools : tools.filter(({ name }) => name !== "set_agent_state") };
         } catch { return { tools: [] }; }
     });
     server.setRequestHandler(CallToolRequestSchema, async ({ params }, { signal }) => {

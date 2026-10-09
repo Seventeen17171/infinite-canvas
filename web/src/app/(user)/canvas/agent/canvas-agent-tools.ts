@@ -12,7 +12,6 @@ export const CANVAS_AGENT_ACTION_NAMES = [
     "get_connected_nodes",
     "get_generation_config",
     "get_generation_task",
-    "read_skill_file",
     "set_agent_state",
     "create_primary_script_node",
     "create_text_node",
@@ -88,7 +87,6 @@ function defineTool(name: CanvasAgentActionName, description: string, properties
     };
 }
 
-export const CANVAS_AGENT_SKILL_FILE_TOOL = defineTool("read_skill_file", "按相对路径读取当前激活系统 Skill 的附属 Markdown 或文本文件。仅当 SKILL.md 明确引用附属文件时使用。", { skillId: STRING, path: STRING }, ["skillId", "path"]);
 
 export const CANVAS_AGENT_TOOLS: CanvasAgentToolDefinition[] = [
     defineTool("get_canvas_summary", "读取当前画布摘要、节点、连线、模型配置和任务状态。"),
@@ -217,9 +215,6 @@ export function normalizeCanvasAgentAction(name: unknown, args: unknown, id = na
         case "get_media_task_status":
         case "delete_node":
             normalized = { nodeId: requiredString(input.nodeId, "nodeId") };
-            break;
-        case "read_skill_file":
-            normalized = { skillId: requiredString(input.skillId, "skillId"), path: requiredString(input.path, "path") };
             break;
         case "delete_connection":
             normalized = { connectionId: requiredString(input.connectionId, "connectionId") };
@@ -374,7 +369,7 @@ export async function parseCanvasAgentJson(content: string, { allowRepair = fals
 }
 
 function canvasAgentToolDefinition(name: string) {
-    return name === "read_skill_file" ? CANVAS_AGENT_SKILL_FILE_TOOL : CANVAS_AGENT_TOOLS.find((tool) => tool.function.name === name)!;
+    return CANVAS_AGENT_TOOLS.find((tool) => tool.function.name === name)!;
 }
 
 export function canvasAgentActionLabel(action: CanvasAgentAction) {
@@ -388,7 +383,6 @@ export function canvasAgentActionLabel(action: CanvasAgentAction) {
         get_connected_nodes: "正在读取关联节点",
         get_generation_config: "正在读取生成配置",
         get_generation_task: "正在读取任务状态",
-        read_skill_file: "正在读取 Skill 文件",
         set_agent_state: "正在保存创作进度",
         create_primary_script_node: "正在创建主剧本节点",
         create_text_node: "正在创建文本节点",

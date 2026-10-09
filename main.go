@@ -17,9 +17,6 @@ func main() {
 	if err := service.EnsureDefaultAdmin(); err != nil {
 		log.Fatal(err)
 	}
-	if err := service.EnsureDefaultAgentSkills(); err != nil {
-		log.Fatal(err)
-	}
 	if !config.Cfg.DisablePromptSync {
 		service.StartPromptSyncScheduler()
 	}

@@ -1,4 +1,4 @@
-export const IMAGE_CHARACTER_SHEET_SKILL = String.raw`
+export const IMAGE_CHARACTER_SHEET_INSTRUCTIONS = String.raw`
 【图片参考规则｜视频角色四视图设定表】
 
 ## 1. 目标与不可替代性
@@ -13,7 +13,7 @@ export const IMAGE_CHARACTER_SHEET_SKILL = String.raw`
 - 前三格锁定体型、服装、轮廓和背面细节；第四格锁定脸部身份。
 - 可作为后续 generate_video 的单一角色图片参考，同时按需要补地点、产品和声音参考。
 
-一次性海报、头像或静态肖像且不会进入连续视频时，不使用本规则，返回图片主 Skill 的一次性肖像模式。
+一次性海报、头像或静态肖像且不会进入连续视频时，不使用本规则，返回图片主创作指令的一次性肖像模式。
 
 ## 2. 比例与尺寸
 

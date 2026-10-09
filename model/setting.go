@@ -5,9 +5,8 @@ import "encoding/json"
 type SettingKey string
 
 const (
-	SettingKeyPublic                 SettingKey = "public"
-	SettingKeyPrivate                SettingKey = "private"
-	SettingKeyAgentSkillsInitialized SettingKey = "agent-skills-initialized"
+	SettingKeyPublic  SettingKey = "public"
+	SettingKeyPrivate SettingKey = "private"
 
 	StorageProviderTypeS3     = "s3"
 	StorageProviderTypeWebDAV = "webdav"

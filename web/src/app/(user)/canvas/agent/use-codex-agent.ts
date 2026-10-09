@@ -7,9 +7,9 @@ import {
 import { canvasAgentSystemPrompt } from "@/services/api/canvas-agent";
 import type { CanvasAgentState } from "../types";
 import { canvasAgentAllowsArrangement, executeActions, type RunCanvasAgentInput, type RunCanvasAgentResult } from "./canvas-agent-runtime";
-import { buildCanvasAgentSkillPrompt } from "./canvas-agent-skills";
+import { buildCanvasAgentInstructions } from "./canvas-agent-instructions";
 import {
-    CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL, normalizeCanvasAgentAction,
+    CANVAS_AGENT_TOOLS, normalizeCanvasAgentAction,
     type CanvasAgentAction, type CanvasAgentToolResult,
 } from "./canvas-agent-tools";
 
@@ -25,7 +25,7 @@ type ActiveRun = {
 };
 const CONNECTION_KEY = "canvas-codex-connection";
 const defaultConnection = { endpoint: "http://127.0.0.1:3210", token: "" };
-const agentTools = [...CANVAS_AGENT_TOOLS, CANVAS_AGENT_SKILL_FILE_TOOL].map(({ function: tool }) => ({ name: tool.name, description: tool.description, inputSchema: tool.parameters }));
+const agentTools = CANVAS_AGENT_TOOLS.map(({ function: tool }) => ({ name: tool.name, description: tool.description, inputSchema: tool.parameters }));
 const stopped = () => new DOMException("Agent 已停止", "AbortError");
 
 export function useCodexAgent(options: {
@@ -266,9 +266,7 @@ export function useCodexAgent(options: {
             active.current = pending;
             input.signal?.addEventListener("abort", abort, { once: true });
             void (async () => {
-                const skills = input.activeSkillContents?.map((skill) => "【完整 Skill：" + skill.name + "，ID：" + skill.id + "】\n" + skill.content).join("\n\n");
-                const hasFiles = Boolean(input.activeSkillContents?.some((skill) => skill.source === "system" && skill.hasFiles));
-                const developerInstructions = canvasAgentSystemPrompt(input.config, buildCanvasAgentSkillPrompt(input.initialState.phase, input.userText, input.getContext(input.initialState), skills, input.contextCheckpoint, hasFiles));
+                const developerInstructions = canvasAgentSystemPrompt(input.config, buildCanvasAgentInstructions(input.initialState.phase, input.userText, input.getContext(input.initialState), input.contextCheckpoint));
                 const { thread } = await link.rpc<{ thread: { id: string } }>(threadId ? "thread/resume" : "thread/start", {
                     ...(threadId ? { threadId } : {}), developerInstructions, ...(input.model ? { model: input.model } : {}),
                 });

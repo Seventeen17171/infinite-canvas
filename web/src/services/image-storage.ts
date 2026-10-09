@@ -420,10 +420,8 @@ export async function deleteStoredImages(keys: Iterable<string>, ownerToken?: st
 
 export async function cleanupUnusedImages(usedData: unknown, storageKeys: ReadonlyMap<string, string> = new Map(), ownerToken?: string) {
     const usedKeys = collectImageStorageKeys(usedData, new Set(), storageKeys);
-    const unused = Array.from(new Set(storageKeys.values())).filter((key) => key.startsWith("server:") && !usedKeys.has(key));
-    await store.iterate((_value, key) => {
-        if (!usedKeys.has(key)) unused.push(key);
-    });
+    // Reclaim only explicit candidates; unrelated historical records are outside this operation.
+    const unused = Array.from(new Set(storageKeys.values())).filter((key) => (key.startsWith("server:") || key.startsWith("image:")) && !usedKeys.has(key));
     await deleteStoredImages(unused, ownerToken);
 }
 

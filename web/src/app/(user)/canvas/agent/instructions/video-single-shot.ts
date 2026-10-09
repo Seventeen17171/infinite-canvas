@@ -1,4 +1,4 @@
-export const VIDEO_SINGLE_SHOT_SKILL = String.raw`
+export const VIDEO_SINGLE_SHOT_INSTRUCTIONS = String.raw`
 【视频参考规则｜单镜头提示词构建】
 
 ## 1. 适用

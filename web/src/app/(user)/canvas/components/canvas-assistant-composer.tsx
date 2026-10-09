@@ -7,9 +7,8 @@ import { Button, Dropdown } from "antd";
 import { canvasThemes } from "@/lib/canvas-theme";
 import { useEffectiveConfig } from "@/stores/use-config-store";
 import { useThemeStore } from "@/stores/use-theme-store";
-import { CanvasNodeType, type CanvasAgentConfig, type CanvasAgentSkillSelection, type CanvasAssistantReference } from "../types";
+import { CanvasNodeType, type CanvasAgentConfig, type CanvasAssistantReference } from "../types";
 import type { CanvasResourceReference } from "../utils/canvas-resource-references";
-import { CanvasAgentSkillPopover } from "./canvas-agent-skill-popover";
 import { CanvasImageSettingsPopover } from "./canvas-image-settings-popover";
 import { CanvasPromptChipInput } from "./canvas-prompt-chip-input";
 import { CanvasVideoSettingsPopover } from "./canvas-video-settings-popover";
@@ -21,13 +20,10 @@ export type CanvasAssistantComposerProps = {
     references: CanvasAssistantReference[];
     availableReferences?: CanvasResourceReference[];
     pendingReferences?: CanvasResourceReference[];
-    selectedSkills?: CanvasAgentSkillSelection[];
     agentConfig: CanvasAgentConfig;
     onAgentConfigChange: (patch: Partial<CanvasAgentConfig>) => void;
     onPromptChange: (prompt: string) => void;
     onReferenceIdsChange: (ids: string[]) => void;
-    onSkillSelect?: (skill: CanvasAgentSkillSelection) => void;
-    onSkillRemove?: (id: string, source: CanvasAgentSkillSelection["source"]) => void;
     onSubmit: (prompt?: string, referenceIds?: string[]) => void | Promise<void>;
     onStop?: () => void;
     onOpenUpload: () => void;
@@ -42,13 +38,10 @@ export function CanvasAssistantComposer({
     references,
     availableReferences,
     pendingReferences,
-    selectedSkills,
     agentConfig,
     onAgentConfigChange,
     onPromptChange,
     onReferenceIdsChange,
-    onSkillSelect,
-    onSkillRemove,
     onSubmit,
     onStop,
     onOpenUpload,
@@ -77,8 +70,6 @@ export function CanvasAssistantComposer({
                     value={prompt}
                     references={promptReferences}
                     pendingReferences={pendingReferences}
-                    skills={selectedSkills}
-                    onSkillRemove={onSkillRemove}
                     onChange={onPromptChange}
                     onReferenceIdsChange={onReferenceIdsChange}
                     onPasteImage={onPasteImage}
@@ -102,7 +93,6 @@ export function CanvasAssistantComposer({
                         >
                             <Button type="text" shape="circle" className="!h-8 !w-8 !min-w-8" style={{ color: theme.node.text }} icon={<Menu className="size-4" />} aria-label="添加素材" />
                         </Dropdown>
-                        {onSkillSelect && onSkillRemove ? <CanvasAgentSkillPopover selectedSkills={selectedSkills} onSelect={onSkillSelect} onDeleteSelected={onSkillRemove} /> : null}
                         {codexControls}
                         <CanvasImageSettingsPopover
                             config={imageConfig}

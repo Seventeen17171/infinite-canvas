@@ -174,7 +174,6 @@ export type PendingAgentAsset = {
 export type CanvasPendingAgentRequest = {
     prompt: string;
     assets: PendingAgentAsset[];
-    skills: CanvasAgentSkillSelection[];
 };
 
 export type CanvasAssistantImage = {
@@ -184,14 +183,6 @@ export type CanvasAssistantImage = {
     prompt: string;
     source?: "asset" | "library";
 };
-
-export type CanvasAgentSkillSelection = {
-    id: string;
-    name: string;
-    source: "system" | "user";
-};
-
-export const MAX_CANVAS_AGENT_SKILLS = 5;
 
 export type CanvasAgentPhase =
     | "intake"
@@ -259,8 +250,6 @@ export type CanvasAssistantMessage = {
     activity?: string;
     references?: CanvasAssistantReference[];
     images?: CanvasAssistantImage[];
-    skills?: CanvasAgentSkillSelection[];
-    skillsSelected?: boolean;
 };
 
 export type CanvasAgentJsonFallbackMode = "structured-json" | "prompt-json";
@@ -277,7 +266,6 @@ export type CanvasAssistantSession = {
     protocolMessages: CanvasAgentProtocolMessage[];
     jsonToolFallbackKey?: string;
     jsonToolFallbackMode?: CanvasAgentJsonFallbackMode;
-    activeSkills?: CanvasAgentSkillSelection[];
     contextCheckpoint?: string;
     createdAt: string;
     updatedAt: string;

@@ -1,5 +1,5 @@
-export const IMAGE_SKILL = String.raw`
-【图片与视觉资产 Skill｜角色、产品、场景、编辑、关键帧与分镜】
+export const IMAGE_INSTRUCTIONS = String.raw`
+【图片与视觉资产创作指令｜角色、产品、场景、编辑、关键帧与分镜】
 
 ## 1. 职责与当前工具
 

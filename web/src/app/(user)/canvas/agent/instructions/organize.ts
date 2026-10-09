@@ -1,5 +1,5 @@
-export const ORGANIZE_SKILL = String.raw`
-【分组与画布整理 Skill｜场景、参考集、章节与可读布局】
+export const ORGANIZE_INSTRUCTIONS = String.raw`
+【分组与画布整理创作指令｜场景、参考集、章节与可读布局】
 
 ## 1. 分组原则
 

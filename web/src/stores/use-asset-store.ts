@@ -208,7 +208,6 @@ export const useAssetStore = create<AssetStore>()(
             cleanupImages: (extra, storageKeys, ownerToken) => {
                 window.setTimeout(async () => {
                     const { useCanvasStore } = await import("@/app/(user)/canvas/stores/use-canvas-store");
-                    const { loadLocalAgentSkills, useAgentSkillStore } = await import("@/stores/use-agent-skill-store");
                     const logKeys: string[] = [];
                     try {
                         const localforage = (await import("localforage")).default;
@@ -245,12 +244,9 @@ export const useAssetStore = create<AssetStore>()(
                     }
 
                     try {
-                        await useAgentSkillStore.getState().loadSkills();
-                        const skillStore = useAgentSkillStore.getState();
-                        const localSkills = useUserStore.getState().token ? await loadLocalAgentSkills() : [];
-                        await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, skills: [...skillStore.systemSkills, ...skillStore.userSkills, ...localSkills], extra, logKeys }, storageKeys, ownerToken);
+                        await cleanupUnusedImages({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, logKeys }, storageKeys, ownerToken);
                     } catch (error) {
-                        console.error("Error gathering Skill keys in cleanupImages", error);
+                        console.error("Error cleaning unused images", error);
                     }
                     await cleanupUnusedMedia({ assets: get().assets, projects: useCanvasStore.getState().projects, extra, logKeys });
                 }, 0);
