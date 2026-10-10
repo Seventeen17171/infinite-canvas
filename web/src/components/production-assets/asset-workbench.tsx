@@ -12,6 +12,8 @@ import { useUserStore } from "@/stores/use-user-store";
 import { useAssetSession } from "./use-asset-session";
 import { clearAssetCreativeDrafts, useAssetCreativeSession } from "./use-asset-creative-session";
 import { AssetCreativePanel } from "./asset-creative-panel";
+import { AssetFilesPanel } from "./asset-files-panel";
+import { useAssetFiles } from "./use-asset-files";
 import styles from "./assets.module.css";
 
 const categories: { value: AssetCategory; label: string; icon: "user" | "scene" }[] = [{ value: "character", label: "人物", icon: "user" }, { value: "scene", label: "场景", icon: "scene" }];
@@ -75,6 +77,7 @@ function AssetWorkbenchSession({ project }: { project: ProductionProject }) {
     };
     const session = useAssetSession(project.id, selection, category, Boolean(token) && !blocked, saved, accessDenied);
     const creative = useAssetCreativeSession(project.id, selection, Boolean(token) && !blocked && session.authorized && session.asset?.id === selection, accessDenied);
+    const files = useAssetFiles(project.id, selection, Boolean(token) && !blocked && session.authorized && session.asset?.id === selection, accessDenied);
     useEffect(() => {
         if (blocked) clearAssetCreativeDrafts(actorId, project.id);
     }, [blocked, actorId, project.id]);
@@ -132,6 +135,7 @@ function AssetWorkbenchSession({ project }: { project: ProductionProject }) {
                                 {session.message && <Alert type={session.phase === "conflict" || session.phase === "error" ? "warning" : "info"} title={session.message} showIcon />}
                                 {session.phase === "conflict" && <Button className={styles.reloadButton} onClick={() => void session.reload()} icon={<ProjectIcon name="reload" />}>保留草稿，载入最新版本</Button>}
                                 <div className={styles.field}><div className={styles.fieldHeading}><label htmlFor="project-asset-name">{label}名称</label><span>{Array.from(session.name).length} / 80</span></div><Input id="project-asset-name" size="large" value={session.name} disabled={locked} placeholder={category === "character" ? "例如：林川" : "例如：旧城天台 · 夜"} onChange={(event) => session.edit({ name: Array.from(event.target.value).slice(0, 80).join("") })} /></div>
+                                {!isNew && <AssetFilesPanel session={files} />}
                                 <div className={`${styles.field} ${styles.descriptionField}`}><div className={styles.fieldHeading}><label htmlFor="project-asset-description">{label === "人物" ? "人物描述" : "场景描述"}</label><span>{Array.from(session.description).length} / 8000</span></div><Input.TextArea id="project-asset-description" value={session.description} disabled={locked} placeholder={category === "character" ? "写下身份、年龄、外貌、服饰和性格。也可以先保存名称，稍后补充。" : "写下地点、空间布局、时代、光线和氛围。也可以先保存名称，稍后补充。"} onChange={(event) => session.edit({ description: Array.from(event.target.value).slice(0, 8000).join("") })} /></div>
                                 {session.backup && <details className={styles.backup}><summary>查看保留的本页草稿</summary><strong>{session.backup.name}</strong><p>{session.backup.description || "未填写描述"}</p><Button size="small" disabled={locked || session.phase !== "ready"} onClick={session.restoreBackup}>用这份草稿继续编辑</Button></details>}
                             </div>

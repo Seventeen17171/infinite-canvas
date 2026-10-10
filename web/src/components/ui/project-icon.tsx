@@ -9,6 +9,7 @@ import {
     FolderOpenOutlined,
     DeleteOutlined,
     DownOutlined,
+    DownloadOutlined,
     DashboardOutlined,
     DragOutlined,
     FontSizeOutlined,
@@ -40,6 +41,7 @@ import type { CSSProperties } from "react";
 const icons = {
     overview: DashboardOutlined,
     down: DownOutlined,
+    download: DownloadOutlined,
     credits: TransactionOutlined,
     logs: FileTextOutlined,
     budget: AuditOutlined,

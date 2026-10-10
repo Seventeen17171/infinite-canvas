@@ -605,6 +605,22 @@ Bridge 持久化请求队列表。普通执行请求由服务端按设备分配�
 
 RunningHub/ComfyUI 不加入上述普通模型筛选：只下发已启用且已明确勾选的工作流名称、ID 和用途，公开列表为空时不开放任何工作流；不会公开密钥、Bridge Token、字段映射或完整工作流 JSON。历史 `user_configs.model_config.workflowChannels` 不再解析或执行；用户只能提交 `scope: "system"` 的后台工作流引用。
 
+### production_files（U04a 项目私有文件）
+
+不可变文件索引，直接归属业务项目并关联同项目资产，不属于某个工作台，也不写入旧 `storage_objects`。本卡只有授权读取；受信验收文件由隔离 fixture 离线准备，面向用户的上传另卡。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | varchar(64) | 主键，`file-UUID` |
+| `project_id` / `asset_id` | varchar(64) | 项目/资产归属；与 created_at 构成列表索引 |
+| `name` | varchar(180) | 下载文件名，不含路径或控制字符 |
+| `mime_type` | varchar(32) | PNG、JPEG 或 WebP |
+| `bytes` | int64 | 1–20 MiB，读取时核对实际普通文件长度 |
+| `storage_key` | varchar(80) | 唯一索引，仅允许 id + `.blob`，不向客户端返回 |
+| `created_by` / `created_at` | string | 来源账号与建立时间；安全 DTO 不含 created_by |
+
+`PRODUCTION_FILE_DIR` 默认 `data/production-files`，部署必须配置在非静态公开目录；文件不存在时拒绝读取。通过 Go `os.OpenRoot` 限定私有根目录，并检查普通文件/符号链接/尺寸；不接受客户端路径，不返回供应商地址，不签发绕过撤权的 URL。所有列表/元数据/GET/HEAD/Range 每次重读当前项目权限，DB 短事务结束后才打开文件传输。响应 `private, no-store`，Range 与条件请求不能跳过授权。旧公开文件读取及旧无项目上传/删除接口关闭，既有记录和磁盘内容不迁移、不删除；历史已下载或供应商公开 URL 不因此被收回。
+
 ### credit_logs
 
 用户算力点变更流水表。当前记录后台手动调整、模型调用预扣和模型调用失败返还。

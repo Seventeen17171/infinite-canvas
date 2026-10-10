@@ -2,6 +2,7 @@ package router
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/tigerowo/infinite-canvas/handler"
@@ -13,6 +14,15 @@ func New() *gin.Engine {
 	router.RedirectTrailingSlash = false
 	_ = router.SetTrustedProxies(nil)
 	api := router.Group("/api")
+	// This runs before UserAuth so rejected file requests cannot acquire public cache headers.
+	api.Use(func(c *gin.Context) {
+		path := c.Request.URL.Path
+		if strings.HasPrefix(path, "/api/files/") || strings.HasPrefix(path, "/api/anonymous/files") || strings.HasPrefix(path, "/api/v1/files") ||
+			(strings.HasPrefix(path, "/api/v1/production/") && strings.Contains(path, "/files")) {
+			handler.PrivateFileHeaders(c.Writer)
+		}
+		c.Next()
+	})
 	api.GET("/health", func(c *gin.Context) {
 		c.String(http.StatusOK, "ok")
 	})
@@ -23,18 +33,14 @@ func New() *gin.Engine {
 	api.GET("/auth/me", middleware.OptionalAuth, gin.WrapF(handler.CurrentUser))
 	api.GET("/settings", gin.WrapF(handler.Settings))
 	api.GET("/storage/config", gin.WrapF(handler.StorageConfig))
-	api.GET("/files/:id", func(c *gin.Context) {
-		handler.FileInfo(c.Writer, c.Request, c.Param("id"))
-	})
-	api.GET("/files/:id/content", func(c *gin.Context) {
-		handler.FileContent(c.Writer, c.Request, c.Param("id"))
-	})
-	anonymousFiles := api.Group("/anonymous/files", middleware.AnonymousStorage)
-	anonymousFiles.POST("/session", func(c *gin.Context) { c.Status(http.StatusNoContent) })
-	anonymousFiles.POST("", gin.WrapF(handler.UploadFile))
-	anonymousFiles.DELETE("/:id", func(c *gin.Context) {
-		handler.DeleteFile(c.Writer, c.Request, c.Param("id"))
-	})
+	for _, path := range []string{"/files/:id", "/files/:id/content"} {
+		api.GET(path, gin.WrapF(handler.LegacyFileRead))
+		api.HEAD(path, gin.WrapF(handler.LegacyFileRead))
+	}
+	anonymousFiles := api.Group("/anonymous/files")
+	anonymousFiles.POST("/session", gin.WrapF(handler.ProjectFileEntryRequired))
+	anonymousFiles.POST("", gin.WrapF(handler.ProjectFileEntryRequired))
+	anonymousFiles.DELETE("/:id", gin.WrapF(handler.ProjectFileEntryRequired))
 	v1 := api.Group("/v1", middleware.UserAuth)
 	production := v1.Group("/production")
 	production.GET("/projects", gin.WrapF(handler.ProductionProjects))
@@ -42,6 +48,17 @@ func New() *gin.Engine {
 	production.GET("/producers", gin.WrapF(handler.ProductionProducers))
 	production.GET("/projects/:id", func(c *gin.Context) { handler.GetProductionProject(c.Writer, c.Request, c.Param("id")) })
 	production.GET("/projects/:id/assets", func(c *gin.Context) { handler.ProductionAssets(c.Writer, c.Request, c.Param("id")) })
+	production.GET("/projects/:id/assets/:assetId/files", func(c *gin.Context) {
+		handler.ProductionFiles(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
+	production.GET("/projects/:id/files/:fileId", func(c *gin.Context) {
+		handler.GetProductionFile(c.Writer, c.Request, c.Param("id"), c.Param("fileId"))
+	})
+	for _, method := range []string{http.MethodGet, http.MethodHead} {
+		production.Handle(method, "/projects/:id/files/:fileId/content", func(c *gin.Context) {
+			handler.ProductionFileContent(c.Writer, c.Request, c.Param("id"), c.Param("fileId"))
+		})
+	}
 	production.POST("/projects/:id/assets", func(c *gin.Context) { handler.CreateProductionAsset(c.Writer, c.Request, c.Param("id")) })
 	production.GET("/projects/:id/assets/:assetId", func(c *gin.Context) {
 		handler.GetProductionAsset(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
@@ -112,14 +129,10 @@ func New() *gin.Engine {
 		handler.DeleteUserWorkflow(c.Writer, c.Request, c.Param("id"))
 	})
 	v1.POST("/storage/measure", gin.WrapF(handler.MeasureUserStorageProvider))
-	v1.POST("/files", gin.WrapF(handler.UploadFile))
-	v1.POST("/files/direct", gin.WrapF(handler.RegisterDirectFile))
-	v1.DELETE("/files/:id", func(c *gin.Context) {
-		handler.DeleteFile(c.Writer, c.Request, c.Param("id"))
-	})
-	v1.DELETE("/files/:id/record", func(c *gin.Context) {
-		handler.DeleteDirectFileRecord(c.Writer, c.Request, c.Param("id"))
-	})
+	v1.POST("/files", gin.WrapF(handler.ProjectFileEntryRequired))
+	v1.POST("/files/direct", gin.WrapF(handler.ProjectFileEntryRequired))
+	v1.DELETE("/files/:id", gin.WrapF(handler.ProjectFileEntryRequired))
+	v1.DELETE("/files/:id/record", gin.WrapF(handler.ProjectFileEntryRequired))
 	v1.GET("/user-config", gin.WrapF(handler.UserConfig))
 	v1.POST("/workflow-tasks", gin.WrapF(handler.ProjectModelTaskRequired))
 	v1.GET("/workflow-tasks/:id", gin.WrapF(handler.ProjectModelTaskRequired))

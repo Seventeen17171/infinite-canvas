@@ -114,3 +114,23 @@
 .creativeEmpty h3 { margin: 4px 0 0; color: #d5d9df; font-size: 14px; font-weight: 500; }
 .creativeEmpty p { margin: 0; }
 .creativeEmpty > span:last-child { font-size: 11px; }
+
+.filesPanel { min-width: 0; display: flex; flex-direction: column; gap: 12px; }
+.filesHeader { display: flex; align-items: center; justify-content: space-between; gap: 12px; }
+.filesHeader h3 { display: flex; align-items: center; gap: 8px; margin: 0; color: #d5d9df; font-size: 13px; font-weight: 500; }
+.filesHeader h3 span { color: #a1a7ae; font-size: 11px; font-weight: 400; }
+.filesEmpty { margin: 0; padding: 18px 12px; background: #08090a; border: 1px dashed #292c30; border-radius: 6px; color: #a1a7ae; font-size: 12px; text-align: center; }
+.filesMessage { margin: 0; color: #d6b97b; font-size: 12px; line-height: 1.7; }
+.fileList { list-style: none; margin: 0; padding: 0; border-top: 1px solid #292c30; }
+.fileList li { min-width: 0; display: flex; align-items: center; gap: 10px; padding: 11px 0; border-bottom: 1px solid #292c30; }
+.fileList li > span { color: #a1a7ae; }
+.fileIdentity { min-width: 0; flex: 1; display: flex; flex-direction: column; gap: 5px; }
+.fileIdentity strong { overflow: hidden; white-space: nowrap; text-overflow: ellipsis; font-size: 12px; font-weight: 400; color: #d5d9df; }
+.fileIdentity > span { font-size: 10px; color: #a1a7ae; }
+.fileActions { display: flex; align-items: center; gap: 1px; flex-shrink: 0; }
+.fileActions :global(.ant-btn) { font-size: 11px; padding-inline: 6px; }
+.filePreview { margin: 0; min-width: 0; overflow: hidden; border: 1px solid #292c30; border-radius: 6px; background: #08090a; }
+.filePreview img { display: block; width: 100%; max-height: 280px; object-fit: contain; background: #000; }
+.filePreview figcaption { min-width: 0; padding: 10px 12px; display: flex; align-items: center; gap: 12px; color: #a1a7ae; font-size: 11px; border-top: 1px solid #292c30; }
+.filePreview figcaption span { min-width: 0; flex: 1; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.filePreview figcaption button { padding: 0; border: 0; flex-shrink: 0; color: #d5d9df; background: transparent; font: inherit; cursor: pointer; }
