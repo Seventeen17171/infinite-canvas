@@ -19,7 +19,7 @@
     max-width: 1280px;
     min-width: 0;
     margin: 0 auto;
-    padding: 28px 32px 32px;
+    padding: 32px 32px 36px;
 }
 .headingRow {
     display: flex;
@@ -32,9 +32,9 @@
 .heading {
     margin: 0;
     min-width: 0;
-    font-size: 24px;
-    line-height: 1.4;
-    letter-spacing: -0.4px;
+    font-size: 30px;
+    line-height: 1.3;
+    letter-spacing: -0.7px;
     font-weight: 600;
 }
 .description {
@@ -58,6 +58,7 @@
 .count {
     font-size: 13px;
     color: var(--project-muted);
+    font-variant-numeric: tabular-nums;
 }
 .directory {
     border: 1px solid var(--project-border);
@@ -73,7 +74,7 @@
     padding: 12px 20px;
     font-size: 12px;
     color: var(--project-subtle);
-    background: var(--project-hover);
+    background: var(--project-background);
     border-bottom: 1px solid var(--project-border);
 }
 .projectRow {
@@ -84,11 +85,13 @@
     min-height: 78px;
     padding: 16px 20px;
     border-bottom: 1px solid var(--project-border);
+    transition: background-color 160ms ease;
 }
 .projectRow:last-child {
     border-bottom: 0;
 }
-.projectRow:hover {
+.projectRow:hover,
+.projectRow:focus-within {
     background: var(--project-hover);
 }
 .projectIdentity {
@@ -108,6 +111,12 @@
     color: var(--project-muted);
     font-size: 18px;
     flex-shrink: 0;
+    transition: color 160ms ease, border-color 160ms ease;
+}
+.projectRow:hover .folderIcon,
+.projectRow:focus-within .folderIcon {
+    color: var(--project-text);
+    border-color: var(--project-focus);
 }
 .projectTitle {
     display: block;
@@ -141,6 +150,7 @@
     white-space: nowrap;
     font-size: 13px;
     color: var(--project-muted);
+    font-variant-numeric: tabular-nums;
 }
 .footer {
     display: flex;
@@ -171,7 +181,7 @@
 }
 
 .projectIntro {
-    margin-bottom: 24px;
+    margin-bottom: 28px;
 }
 .summary {
     margin: 12px 0 0;
@@ -189,6 +199,7 @@
     gap: 8px 24px;
     font-size: 12px;
     color: var(--project-subtle);
+    font-variant-numeric: tabular-nums;
 }
 .workspaceGrid {
     display: grid;
@@ -207,9 +218,12 @@
     background: var(--project-surface);
     color: inherit;
     text-decoration: none;
+    transition: border-color 180ms ease, background-color 180ms ease;
 }
-.workspaceLink:hover {
+.workspaceLink:hover,
+.workspaceLink:focus-visible {
     border-color: var(--project-focus);
+    background: var(--project-hover);
 }
 .workspaceIcon {
     display: flex;
@@ -220,6 +234,13 @@
     flex-shrink: 0;
     font-size: 22px;
     color: var(--project-muted);
+    transition: color 180ms ease;
+}
+.workspaceLink:hover .workspaceIcon,
+.workspaceLink:focus-visible .workspaceIcon,
+.workspaceLink:hover .workspaceEnter,
+.workspaceLink:focus-visible .workspaceEnter {
+    color: var(--project-text);
 }
 .workspaceLink h2 {
     margin: 0 0 5px;
@@ -240,6 +261,7 @@
     gap: 8px;
     color: var(--project-muted);
     font-size: 12px;
+    transition: color 180ms ease;
 }
 .spaceTop {
     display: flex;
@@ -252,7 +274,7 @@
     font-size: 24px;
 }
 .spaceTop .heading {
-    font-size: 24px;
+    font-size: 30px;
 }
 
 .workspaceEmpty {
@@ -271,10 +293,13 @@
     margin: auto;
 }
 
-.shell a:focus-visible {
+.content a:focus-visible {
     outline: 2px solid var(--project-focus);
-    outline-offset: 5px;
+    outline-offset: 3px;
     border-radius: 3px;
+}
+.content .workspaceLink:focus-visible {
+    border-radius: 8px;
 }
 @media (max-width: 1300px) {
     .content {
@@ -306,4 +331,21 @@
 .workspaceInfo,
 .spaceTop > div {
     min-width: 0;
+}
+
+:global([data-workspace-motion="off"]) .projectRow,
+:global([data-workspace-motion="off"]) .folderIcon,
+:global([data-workspace-motion="off"]) .workspaceLink,
+:global([data-workspace-motion="off"]) .workspaceIcon,
+:global([data-workspace-motion="off"]) .workspaceEnter {
+    transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .projectRow,
+    .folderIcon,
+    .workspaceLink,
+    .workspaceIcon,
+    .workspaceEnter {
+        transition: none;
+    }
 }

@@ -116,6 +116,47 @@
     --sidebar-ring: oklch(0.556 0 0);
 }
 
+/* Applied to the root only on team and login routes, including their portals. */
+html[data-studio="true"] {
+    --background: #000000;
+    --foreground: #F4F5F7;
+    --border: #292C30;
+    --ring: #D5D9DF;
+    --card: #08090A;
+    --card-foreground: #F4F5F7;
+    --popover: #101214;
+    --popover-foreground: #F4F5F7;
+    --primary: #D5D9DF;
+    --primary-foreground: #08090A;
+    --secondary: #171A1E;
+    --secondary-foreground: #F4F5F7;
+    --muted: #171A1E;
+    --muted-foreground: #A1A7AE;
+    --accent: #22262B;
+    --accent-foreground: #F4F5F7;
+    --input: #292C30;
+}
+
+html[data-studio="true"] .ant-modal-content,
+html[data-studio="true"] .ant-dropdown-menu,
+html[data-studio="true"] .ant-select-dropdown,
+html[data-studio="true"] .ant-popover-inner {
+    border: 1px solid #34383E;
+}
+
+html[data-studio="true"] :where(a, button, [tabindex]):focus-visible {
+    outline: 2px solid #D5D9DF;
+    outline-offset: 3px;
+}
+
+html[data-studio-motion="off"] *,
+html[data-studio-motion="off"] *::before,
+html[data-studio-motion="off"] *::after {
+    animation: none !important;
+    transition: none !important;
+    scroll-behavior: auto !important;
+}
+
 @layer base {
     * {
         @apply border-border outline-ring/50;

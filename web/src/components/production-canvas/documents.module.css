@@ -8,6 +8,7 @@
 .muted {
     color: var(--project-muted);
     font-size: 13px;
+    font-variant-numeric: tabular-nums;
 }
 .directory {
     border: 1px solid var(--project-border);
@@ -26,17 +27,19 @@
 .columns {
     font-size: 12px;
     color: var(--project-subtle);
-    background: var(--project-hover);
+    background: var(--project-background);
     border-bottom: 1px solid var(--project-border);
 }
 .row {
     min-height: 68px;
     border-bottom: 1px solid var(--project-border);
+    transition: background-color 160ms ease;
 }
 .row:last-child {
     border: 0;
 }
-.row:hover {
+.row:hover,
+.row:focus-within {
     background: var(--project-hover);
 }
 .name {
@@ -57,9 +60,16 @@
     width: 32px;
     height: 32px;
     color: var(--project-muted);
-    background: var(--project-hover);
+    border: 1px solid var(--project-border);
+    background: var(--project-surface);
     border-radius: 6px;
     font-size: 17px;
+    transition: color 160ms ease, border-color 160ms ease;
+}
+.row:hover .documentIcon,
+.row:focus-within .documentIcon {
+    color: var(--project-text);
+    border-color: var(--project-focus);
 }
 .documentTitle {
     overflow: hidden;
@@ -69,6 +79,11 @@
 .name:hover {
     text-decoration: underline;
     text-underline-offset: 4px;
+}
+.name:focus-visible {
+    outline: 2px solid var(--project-focus);
+    outline-offset: 4px;
+    border-radius: 3px;
 }
 .empty {
     border: 1px solid var(--project-border);
@@ -108,6 +123,16 @@
     justify-content: flex-end;
     gap: 10px;
     margin-top: 24px;
+}
+:global([data-workspace-motion="off"]) .row,
+:global([data-workspace-motion="off"]) .documentIcon {
+    transition: none;
+}
+@media (prefers-reduced-motion: reduce) {
+    .row,
+    .documentIcon {
+        transition: none;
+    }
 }
 .page {
     height: 100%;
