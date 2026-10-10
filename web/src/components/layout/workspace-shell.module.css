@@ -1,0 +1,91 @@
+.shell {
+    display: flex;
+    height: 100%;
+    min-height: 0;
+    overflow: hidden;
+    color: var(--workspace-text);
+    background: var(--workspace-bg);
+}
+.sidebar {
+    width: 232px;
+    flex: 0 0 232px;
+    display: flex;
+    flex-direction: column;
+    min-height: 0;
+    background: var(--workspace-surface);
+    border-right: 1px solid var(--workspace-border);
+}
+.brand {
+    height: 56px;
+    flex-shrink: 0;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 0 20px;
+    color: inherit;
+    text-decoration: none;
+}
+.logo {
+    width: 24px;
+    height: 24px;
+    flex-shrink: 0;
+    background: currentColor;
+    mask: url("/logo.svg") center/contain no-repeat;
+}
+.brandLabel { font-size: 16px; font-weight: 650; letter-spacing: -0.4px; white-space: nowrap; }
+.navigation { flex: 1; min-height: 0; padding: 8px 12px; overflow-y: auto; overflow-x: hidden; scrollbar-width: thin; }
+.group + .group { margin-top: 20px; }
+.groupTitle { display: block; padding: 0 10px 8px; font-size: 11px; line-height: 16px; color: var(--workspace-subtle); }
+.navLink {
+    min-height: 36px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    margin: 2px 0;
+    border-radius: 6px;
+    color: var(--workspace-muted);
+    text-decoration: none;
+    font-size: 13px;
+    line-height: 20px;
+}
+.navLink > :first-child { flex-shrink: 0; font-size: 17px; }
+.navLink:hover { color: var(--workspace-text); background: var(--workspace-hover); }
+.active { color: var(--workspace-text); background: var(--workspace-selected); font-weight: 600; }
+.linkLabel { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.projectContext { margin-bottom: 8px; }
+.projectContext .groupTitle { padding-bottom: 4px; }
+.projectTitle { display: block; padding: 0 10px; font-size: 13px; font-weight: 600; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebarFooter { flex-shrink: 0; padding: 10px 12px 12px; border-top: 1px solid var(--workspace-border); }
+.account { display: flex; width: 100%; align-items: center; gap: 10px; padding: 6px; border: 0; border-radius: 6px; color: inherit; background: transparent; text-align: left; cursor: pointer; }
+.account:hover { background: var(--workspace-hover); }
+.avatar { display: grid; place-items: center; width: 30px; height: 30px; flex-shrink: 0; border-radius: 7px; background: var(--workspace-selected); font-size: 13px; font-weight: 600; }
+.accountInfo { min-width: 0; flex: 1; display: flex; flex-direction: column; font-size: 12px; gap: 2px; }
+.accountInfo > span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.accountInfo small { font-size: 11px; color: var(--workspace-subtle); }
+.accountChevron { font-size: 10px; color: var(--workspace-subtle); }
+.attribution { display: block; width: fit-content; padding: 8px 6px 0; font-size: 10px; color: var(--workspace-subtle); text-decoration: none; }
+.attribution:hover { color: var(--workspace-text); }
+.body { display: flex; flex-direction: column; flex: 1; min-width: 0; min-height: 0; }
+.header { flex: 0 0 56px; min-height: 56px; display: flex; align-items: center; gap: 14px; padding: 0 24px 0 16px; background: var(--workspace-surface); border-bottom: 1px solid var(--workspace-border); }
+.breadcrumb { flex: 1; min-width: 0; font-size: 12px; color: var(--workspace-muted); }
+.breadcrumb ol { display: flex; align-items: center; gap: 12px; padding: 0; margin: 0; list-style: none; }
+.breadcrumb li { flex-shrink: 0; }
+.breadcrumb .projectCrumb { flex-shrink: 1; min-width: 0; max-width: 440px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.breadcrumb a { color: var(--workspace-muted); text-decoration: none; }
+.breadcrumb a:hover { color: var(--workspace-text); text-decoration: underline; text-underline-offset: 3px; }
+.breadcrumb [aria-current="page"] { color: var(--workspace-text); font-weight: 500; }
+.separator { color: var(--workspace-subtle); }
+.themeButton { flex-shrink: 0; }
+.content { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; }
+.collapsed .sidebar { width: 64px; flex-basis: 64px; }
+.collapsed .brand { padding: 0 20px; }
+.collapsed .navigation { padding: 12px 8px; }
+.collapsed .brandLabel, .collapsed .linkLabel, .collapsed .groupTitle, .collapsed .projectContext, .collapsed .accountInfo, .collapsed .accountChevron { display: none; }
+.collapsed .navLink { justify-content: center; padding: 9px; }
+.collapsed .group + .group { padding-top: 12px; margin-top: 12px; border-top: 1px solid var(--workspace-border); }
+.collapsed .sidebarFooter { padding: 10px 8px; }
+.collapsed .account { justify-content: center; padding: 6px 0; }
+.collapsed .attribution { font-size: 0; padding: 6px 0 0; width: 100%; text-align: center; }
+.collapsed .attribution::after { content: "∞"; font-size: 16px; }
+.shell a:focus-visible, .account:focus-visible { outline: 2px solid var(--workspace-focus); outline-offset: 2px; border-radius: 4px; }

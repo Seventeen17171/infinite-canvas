@@ -9,7 +9,7 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ProjectBudgetSection } from "@/components/production-budget/project-budget";
 import { ApiError } from "@/services/api/request";
 import { ProjectIcon } from "@/components/ui/project-icon";
-import { ProjectHeader } from "../project-header";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { ProjectDialog } from "../project-dialog";
 import { useProject } from "../use-project";
 import styles from "../projects.module.css";
@@ -22,35 +22,32 @@ export default function ProjectPage() {
     const project = query.data?.project;
     if (query.isPending)
         return (
-            <>
-                <ProjectHeader />
+            <WorkspaceShell>
                 <div className={styles.empty}>
                     <Spin aria-label="正在加载项目" />
                 </div>
-            </>
+            </WorkspaceShell>
         );
     const denied = query.error instanceof ApiError && [401, 403, 404].includes(query.error.status);
     if (!project || denied)
         return (
-            <>
-                <ProjectHeader />
+            <WorkspaceShell>
                 <main className={styles.error}>
                     <Alert type="error" title={query.error?.message || "项目无法访问"} description="返回项目库查看当前获授权的项目。" showIcon action={<Button href="/projects">返回项目库</Button>} />
                     <Button style={{ marginTop: 18 }} onClick={() => void query.refetch()}>
                         重试
                     </Button>
                 </main>
-            </>
+            </WorkspaceShell>
         );
     const base = `/projects/${encodeURIComponent(project.id)}`;
     return (
-        <>
-            <ProjectHeader project={project} />
+        <WorkspaceShell project={project}>
             <main className={styles.content}>
                 {query.isError && <Alert style={{ marginBottom: 22 }} type="warning" title="暂时无法刷新项目" description="已保留当前预算申请输入，请在连接恢复后刷新。" action={<Button onClick={() => void query.refetch()}>重试</Button>} />}
                 <section className={styles.projectIntro}>
                     <div className={styles.headingRow} style={{ marginBottom: 0 }}>
-                        <h1 className={styles.heading}>{project.title}</h1>
+                        <h1 className={`${styles.heading} ${styles.projectHeading}`} title={project.title}>{project.title}</h1>
                         {project.canAssign && (
                             <Button icon={<ProjectIcon name="user" />} onClick={() => setAssigning(true)}>
                                 改派负责人
@@ -59,7 +56,8 @@ export default function ProjectPage() {
                     </div>
                     {project.summary && <p className={styles.summary}>{project.summary}</p>}
                     <div className={styles.projectMeta}>
-                        <span>创建人员：{project.creatorName}</span>
+                        <span title={project.producerName}>制作组长：{project.producerName}</span>
+                        <span title={project.creatorName}>创建人员：{project.creatorName}</span>
                         <span>创建于 {dayjs(project.createdAt).format("YYYY-MM-DD")}</span>
                     </div>
                 </section>
@@ -69,8 +67,10 @@ export default function ProjectPage() {
                         <span className={styles.workspaceIcon}>
                             <ProjectIcon name="canvas" />
                         </span>
-                        <h2>画面创作</h2>
-                        <p>在这个项目中组织制作画面与画布文档。</p>
+                        <div className={styles.workspaceInfo}>
+                            <h2>画面创作</h2>
+                            <p>整理画面规划与画布文档。</p>
+                        </div>
                         <span className={styles.workspaceEnter}>
                             进入画面创作 <ProjectIcon name="enter" />
                         </span>
@@ -79,8 +79,10 @@ export default function ProjectPage() {
                         <span className={styles.workspaceIcon}>
                             <ProjectIcon name="assets" />
                         </span>
-                        <h2>资产创意</h2>
-                        <p>在这个项目中整理角色、场景与道具资产。</p>
+                        <div className={styles.workspaceInfo}>
+                            <h2>资产创意</h2>
+                            <p>角色、场景与道具的创意空间。</p>
+                        </div>
                         <span className={styles.workspaceEnter}>
                             进入资产创意 <ProjectIcon name="enter" />
                         </span>
@@ -103,6 +105,6 @@ export default function ProjectPage() {
                     }}
                 />
             )}
-        </>
+        </WorkspaceShell>
     );
 }

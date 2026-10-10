@@ -5,7 +5,7 @@ import { Alert, Button, Spin } from "antd";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { DocumentList } from "@/components/production-canvas/document-list";
 import type { WorkspaceKind } from "@/services/api/production-projects";
-import { ProjectHeader } from "../../project-header";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { useProject } from "../../use-project";
 import styles from "../../projects.module.css";
 
@@ -17,38 +17,34 @@ export default function ProjectWorkspacePage() {
     const workspace = query.data?.workspace;
     if (!valid)
         return (
-            <>
-                <ProjectHeader />
+            <WorkspaceShell>
                 <main className={styles.error}>
                     <Alert type="error" title="工作台不存在" action={<Button href="/projects">返回项目库</Button>} />
                 </main>
-            </>
+            </WorkspaceShell>
         );
     if (query.isPending)
         return (
-            <>
-                <ProjectHeader />
+            <WorkspaceShell>
                 <div className={styles.empty}>
                     <Spin aria-label="正在加载工作台" />
                 </div>
-            </>
+            </WorkspaceShell>
         );
     if (!project || !workspace || query.isError)
         return (
-            <>
-                <ProjectHeader />
+            <WorkspaceShell>
                 <main className={styles.error}>
                     <Alert type="error" title={query.error?.message || "工作台无法访问"} description="返回项目库查看当前获授权的项目。" showIcon action={<Button href="/projects">返回项目库</Button>} />
                     <Button style={{ marginTop: 18 }} onClick={() => void query.refetch()}>
                         重试
                     </Button>
                 </main>
-            </>
+            </WorkspaceShell>
         );
     const canvas = workspace.kind === "canvas";
     return (
-        <>
-            <ProjectHeader project={project} />
+        <WorkspaceShell project={project}>
             <main className={styles.content} data-project-id={project.id} data-workspace-id={workspace.id} data-workspace-kind={workspace.kind}>
                 <div className={styles.spaceTop}>
                     <span className={styles.workspaceIcon}>
@@ -57,7 +53,7 @@ export default function ProjectWorkspacePage() {
                     <div>
                         <h1 className={styles.heading}>{canvas ? "画面创作" : "资产创意"}</h1>
                         <p className={styles.description}>
-                            {project.title}的{canvas ? "画面与画布文档" : "角色、场景与道具资产"}空间
+                            {canvas ? "项目画布集中管理，打开文档继续创作。" : "项目内的角色、场景与道具资产空间。"}
                         </p>
                     </div>
                 </div>
@@ -72,6 +68,6 @@ export default function ProjectWorkspacePage() {
                     </section>
                 )}
             </main>
-        </>
+        </WorkspaceShell>
     );
 }

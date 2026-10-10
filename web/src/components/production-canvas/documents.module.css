@@ -2,7 +2,7 @@
     display: flex;
     align-items: center;
     justify-content: space-between;
-    margin-bottom: 18px;
+    margin-bottom: 12px;
     gap: 20px;
 }
 .muted {
@@ -11,25 +11,26 @@
 }
 .directory {
     border: 1px solid var(--project-border);
-    border-radius: 12px;
+    border-radius: 8px;
     background: var(--project-surface);
     overflow: hidden;
 }
 .columns,
 .row {
     display: grid;
-    grid-template-columns: minmax(200px, 1fr) 180px 76px;
-    gap: 24px;
+    grid-template-columns: minmax(0, 1fr) 156px 68px;
+    gap: 20px;
     align-items: center;
-    padding: 18px 24px;
+    padding: 12px 20px;
 }
 .columns {
     font-size: 12px;
     color: var(--project-subtle);
+    background: var(--project-hover);
     border-bottom: 1px solid var(--project-border);
 }
 .row {
-    min-height: 86px;
+    min-height: 68px;
     border-bottom: 1px solid var(--project-border);
 }
 .row:last-child {
@@ -41,11 +42,26 @@
 .name {
     display: flex;
     align-items: center;
-    gap: 16px;
-    font-size: 16px;
+    gap: 12px;
+    min-width: 0;
+    font-size: 14px;
     font-weight: 500;
     color: inherit;
     text-decoration: none;
+}
+.documentIcon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+    width: 32px;
+    height: 32px;
+    color: var(--project-muted);
+    background: var(--project-hover);
+    border-radius: 6px;
+    font-size: 17px;
+}
+.documentTitle {
     overflow: hidden;
     white-space: nowrap;
     text-overflow: ellipsis;
@@ -56,20 +72,20 @@
 }
 .empty {
     border: 1px solid var(--project-border);
-    border-radius: 12px;
+    border-radius: 8px;
     background: var(--project-surface);
     text-align: center;
-    padding: 78px 24px;
+    padding: 64px 24px;
     color: var(--project-muted);
 }
 .empty h2 {
-    font-size: 20px;
+    font-size: 18px;
     font-weight: 500;
     color: var(--project-text);
     margin: 18px 0 12px;
 }
 .empty p {
-    font-size: 14px;
+    font-size: 13px;
     line-height: 1.8;
 }
 .pagination {
@@ -119,6 +135,10 @@
     white-space: nowrap;
     font-size: 12px;
     opacity: 0.6;
+}
+.projectName > span {
+    overflow: hidden;
+    text-overflow: ellipsis;
 }
 .titleSeparator {
     opacity: 0.35;

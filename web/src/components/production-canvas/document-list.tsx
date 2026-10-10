@@ -75,16 +75,16 @@ export function DocumentList({ projectId }: { projectId: string }) {
                 </div>
             ) : (
                 <div className={styles.directory}>
-                    <div className={styles.columns}>
+                    <div className={styles.columns} aria-hidden>
                         <span>画布名称</span>
                         <span>最后保存</span>
                         <span />
                     </div>
                     {query.data.items.map((item) => (
                         <div key={item.id} className={styles.row} data-document-id={item.id}>
-                            <Link className={styles.name} href={`/projects/${encodeURIComponent(projectId)}/canvas/documents/${encodeURIComponent(item.id)}`}>
-                                <ProjectIcon name="canvas" />
-                                {item.title}
+                            <Link className={styles.name} title={item.title} href={`/projects/${encodeURIComponent(projectId)}/canvas/documents/${encodeURIComponent(item.id)}`}>
+                                <span className={styles.documentIcon}><ProjectIcon name="canvas" /></span>
+                                <span className={styles.documentTitle}>{item.title}</span>
                             </Link>
                             <time className={styles.muted} dateTime={item.updatedAt}>
                                 {new Date(item.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}

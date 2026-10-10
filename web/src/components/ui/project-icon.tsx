@@ -6,6 +6,8 @@ import {
     ArrowRightOutlined,
     FolderOpenOutlined,
     DeleteOutlined,
+    DownOutlined,
+    DashboardOutlined,
     DragOutlined,
     FontSizeOutlined,
     GroupOutlined,
@@ -27,10 +29,16 @@ import {
     TeamOutlined,
     UserOutlined,
     UndoOutlined,
+    TransactionOutlined,
+    FileTextOutlined,
 } from "@ant-design/icons";
 import type { CSSProperties } from "react";
 
 const icons = {
+    overview: DashboardOutlined,
+    down: DownOutlined,
+    credits: TransactionOutlined,
+    logs: FileTextOutlined,
     budget: AuditOutlined,
     menu: MenuOutlined,
     panelOpen: MenuUnfoldOutlined,

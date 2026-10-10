@@ -7,7 +7,7 @@ import { Alert, Button, Dropdown, Input, Modal, Spin } from "antd";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { ApiError } from "@/services/api/request";
 import { useDocumentSession } from "@/components/production-canvas/use-document-session";
-import { ProjectHeader } from "../../../../project-header";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { useProject } from "../../../../use-project";
 import styles from "@/components/production-canvas/documents.module.css";
 
@@ -79,6 +79,7 @@ export default function CanvasDocumentPage() {
                 menu={{
                     items: [
                         { key: "projects", label: "项目库", icon: <ProjectIcon name="projects" />, onClick: () => void navigate("/projects") },
+                        { key: "overview", label: "项目概览", icon: <ProjectIcon name="overview" />, onClick: () => void navigate(`/projects/${encodeURIComponent(id)}`) },
                         { key: "documents", label: "画布列表", icon: <ProjectIcon name="canvas" />, onClick: () => void navigate(listURL) },
                         { type: "divider" },
                         { key: "assets", label: "资产创意", icon: <ProjectIcon name="assets" />, onClick: () => void navigate(`/projects/${encodeURIComponent(id)}/assets`) },
@@ -87,9 +88,11 @@ export default function CanvasDocumentPage() {
             >
                 <Button type="text" aria-label="打开画布菜单" icon={<ProjectIcon name="menu" />} />
             </Dropdown>
-            <span className={styles.projectName} title={project?.title}>
+            <Button type="text" className={styles.projectName} title={project?.title} aria-label="返回项目概览" onClick={() => void navigate(`/projects/${encodeURIComponent(id)}`)}>
                 {project?.title}
-            </span>
+            </Button>
+            <span className={styles.titleSeparator}>/</span>
+            <Button type="text" aria-label="返回画布列表" onClick={() => void navigate(listURL)}>画面创作</Button>
             <span className={styles.titleSeparator}>/</span>
             <Input
                 aria-label="画布名称"
@@ -143,8 +146,7 @@ export default function CanvasDocumentPage() {
         <div className={styles.page}>
             {modalContext}
             {error ? (
-                <>
-                    <ProjectHeader project={allowed ? project : undefined} />
+                <WorkspaceShell project={allowed && session.phase !== "blocked" ? project : undefined}>
                     <main className={styles.error}>
                         <Alert type="error" title={error} description="返回项目库查看当前获授权的项目。" action={<Button href="/projects">返回项目库</Button>} />
                         <Button
@@ -157,7 +159,7 @@ export default function CanvasDocumentPage() {
                             重试
                         </Button>
                     </main>
-                </>
+                </WorkspaceShell>
             ) : !allowed || !session.content || session.phase === "loading" ? (
                 <div className={styles.loading}>
                     <Spin aria-label="正在加载画布" />

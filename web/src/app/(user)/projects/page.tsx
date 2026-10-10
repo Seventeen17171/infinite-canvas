@@ -9,7 +9,7 @@ import { ProjectIcon } from "@/components/ui/project-icon";
 import { ApiError } from "@/services/api/request";
 import { fetchProductionProjects } from "@/services/api/production-projects";
 import { useUserStore } from "@/stores/use-user-store";
-import { ProjectHeader } from "./project-header";
+import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { ProjectDialog } from "./project-dialog";
 import styles from "./projects.module.css";
 
@@ -37,8 +37,7 @@ export default function ProjectsPage() {
     const projects = query.data?.items || [];
 
     return (
-        <>
-            <ProjectHeader />
+        <WorkspaceShell>
             <main className={styles.content}>
                 <div className={styles.headingRow}>
                     <div>
@@ -46,7 +45,7 @@ export default function ProjectsPage() {
                         <p className={styles.description}>从项目进入画面创作与资产创意，内容随项目分别管理。</p>
                     </div>
                     {canCreate && (
-                        <Button type="primary" size="large" icon={<ProjectIcon name="plus" />} onClick={() => setCreating(true)}>
+                        <Button type="primary" icon={<ProjectIcon name="plus" />} onClick={() => setCreating(true)}>
                             创建项目
                         </Button>
                     )}
@@ -91,17 +90,17 @@ export default function ProjectsPage() {
                                         <ProjectIcon name="projects" />
                                     </span>
                                     <div style={{ minWidth: 0, flex: 1 }}>
-                                        <Link className={styles.projectTitle} href={`/projects/${encodeURIComponent(project.id)}`}>
+                                        <Link className={styles.projectTitle} title={project.title} href={`/projects/${encodeURIComponent(project.id)}`}>
                                             {project.title}
                                         </Link>
-                                        <p className={styles.projectSummary}>{project.summary || "未填写项目说明"}</p>
+                                        <p className={styles.projectSummary} title={project.summary || undefined}>{project.summary || "未填写项目说明"}</p>
                                     </div>
                                 </div>
                                 <span className={styles.cell} title={project.producerName}>
                                     {project.producerName}
                                 </span>
-                                <span className={styles.cell}>{project.creatorName}</span>
-                                <span className={styles.cell}>{dayjs(project.updatedAt).format("YYYY-MM-DD HH:mm")}</span>
+                                <span className={styles.cell} title={project.creatorName}>{project.creatorName}</span>
+                                <time className={styles.cell} dateTime={project.updatedAt}>{dayjs(project.updatedAt).format("YYYY-MM-DD HH:mm")}</time>
                                 <Button type="text" href={`/projects/${encodeURIComponent(project.id)}`} icon={<ProjectIcon name="enter" />} aria-label={`进入项目 ${project.title}`}>
                                     进入
                                 </Button>
@@ -135,6 +134,6 @@ export default function ProjectsPage() {
                     }}
                 />
             )}
-        </>
+        </WorkspaceShell>
     );
 }
