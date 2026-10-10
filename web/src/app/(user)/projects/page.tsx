@@ -4,6 +4,7 @@ import { useEffect, useState } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { Alert, Button, Input, Pagination, Spin } from "antd";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import dayjs from "dayjs";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { ApiError } from "@/services/api/request";
@@ -14,6 +15,7 @@ import { ProjectDialog } from "./project-dialog";
 import styles from "./projects.module.css";
 
 export default function ProjectsPage() {
+    const router = useRouter();
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const queryClient = useQueryClient();
@@ -101,7 +103,7 @@ export default function ProjectsPage() {
                                 </span>
                                 <span className={styles.cell} title={project.creatorName}>{project.creatorName}</span>
                                 <time className={styles.cell} dateTime={project.updatedAt}>{dayjs(project.updatedAt).format("YYYY-MM-DD HH:mm")}</time>
-                                <Button type="text" href={`/projects/${encodeURIComponent(project.id)}`} icon={<ProjectIcon name="enter" />} aria-label={`进入项目 ${project.title}`}>
+                                <Button type="text" onClick={() => router.push(`/projects/${encodeURIComponent(project.id)}`)} icon={<ProjectIcon name="enter" />} aria-label={`进入项目 ${project.title}`}>
                                     进入
                                 </Button>
                             </article>

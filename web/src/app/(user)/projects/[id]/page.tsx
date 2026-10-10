@@ -9,7 +9,6 @@ import { useQueryClient } from "@tanstack/react-query";
 import { ProjectBudgetSection } from "@/components/production-budget/project-budget";
 import { ApiError } from "@/services/api/request";
 import { ProjectIcon } from "@/components/ui/project-icon";
-import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { ProjectDialog } from "../project-dialog";
 import { useProject } from "../use-project";
 import styles from "../projects.module.css";
@@ -22,27 +21,27 @@ export default function ProjectPage() {
     const project = query.data?.project;
     if (query.isPending)
         return (
-            <WorkspaceShell>
+            <>
                 <div className={styles.empty}>
                     <Spin aria-label="正在加载项目" />
                 </div>
-            </WorkspaceShell>
+            </>
         );
     const denied = query.error instanceof ApiError && [401, 403, 404].includes(query.error.status);
     if (!project || denied)
         return (
-            <WorkspaceShell>
+            <>
                 <main className={styles.error}>
                     <Alert type="error" title={query.error?.message || "项目无法访问"} description="返回项目库查看当前获授权的项目。" showIcon action={<Button href="/projects">返回项目库</Button>} />
                     <Button style={{ marginTop: 18 }} onClick={() => void query.refetch()}>
                         重试
                     </Button>
                 </main>
-            </WorkspaceShell>
+            </>
         );
     const base = `/projects/${encodeURIComponent(project.id)}`;
     return (
-        <WorkspaceShell project={project}>
+        <>
             <main className={styles.content}>
                 {query.isError && <Alert style={{ marginBottom: 22 }} type="warning" title="暂时无法刷新项目" description="已保留当前预算申请输入，请在连接恢复后刷新。" action={<Button onClick={() => void query.refetch()}>重试</Button>} />}
                 <section className={styles.projectIntro}>
@@ -105,6 +104,6 @@ export default function ProjectPage() {
                     }}
                 />
             )}
-        </WorkspaceShell>
+        </>
     );
 }

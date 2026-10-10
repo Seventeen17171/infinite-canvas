@@ -89,7 +89,7 @@ export function DocumentList({ projectId }: { projectId: string }) {
                             <time className={styles.muted} dateTime={item.updatedAt}>
                                 {new Date(item.updatedAt).toLocaleString("zh-CN", { month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hour12: false })}
                             </time>
-                            <Button type="text" href={`/projects/${encodeURIComponent(projectId)}/canvas/documents/${encodeURIComponent(item.id)}`} aria-label={`打开${item.title}`}>
+                            <Button type="text" onClick={() => router.push(`/projects/${encodeURIComponent(projectId)}/canvas/documents/${encodeURIComponent(item.id)}`)} aria-label={`打开${item.title}`}>
                                 打开
                             </Button>
                         </div>

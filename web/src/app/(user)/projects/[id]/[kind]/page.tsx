@@ -5,7 +5,6 @@ import { Alert, Button, Spin } from "antd";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { DocumentList } from "@/components/production-canvas/document-list";
 import type { WorkspaceKind } from "@/services/api/production-projects";
-import { WorkspaceShell } from "@/components/layout/workspace-shell";
 import { useProject } from "../../use-project";
 import styles from "../../projects.module.css";
 
@@ -17,34 +16,34 @@ export default function ProjectWorkspacePage() {
     const workspace = query.data?.workspace;
     if (!valid)
         return (
-            <WorkspaceShell>
+            <>
                 <main className={styles.error}>
                     <Alert type="error" title="工作台不存在" action={<Button href="/projects">返回项目库</Button>} />
                 </main>
-            </WorkspaceShell>
+            </>
         );
     if (query.isPending)
         return (
-            <WorkspaceShell>
+            <>
                 <div className={styles.empty}>
                     <Spin aria-label="正在加载工作台" />
                 </div>
-            </WorkspaceShell>
+            </>
         );
     if (!project || !workspace || query.isError)
         return (
-            <WorkspaceShell>
+            <>
                 <main className={styles.error}>
                     <Alert type="error" title={query.error?.message || "工作台无法访问"} description="返回项目库查看当前获授权的项目。" showIcon action={<Button href="/projects">返回项目库</Button>} />
                     <Button style={{ marginTop: 18 }} onClick={() => void query.refetch()}>
                         重试
                     </Button>
                 </main>
-            </WorkspaceShell>
+            </>
         );
     const canvas = workspace.kind === "canvas";
     return (
-        <WorkspaceShell project={project}>
+        <>
             <main className={styles.content} data-project-id={project.id} data-workspace-id={workspace.id} data-workspace-kind={workspace.kind}>
                 <div className={styles.spaceTop}>
                     <span className={styles.workspaceIcon}>
@@ -68,6 +67,6 @@ export default function ProjectWorkspacePage() {
                     </section>
                 )}
             </main>
-        </WorkspaceShell>
+        </>
     );
 }
