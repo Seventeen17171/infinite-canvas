@@ -65,6 +65,14 @@ export async function fetchAssetFiles(token: string, projectId: string, assetId:
     });
 }
 
+export async function fetchProductionFile(token: string, projectId: string, assetId: string, fileId: string, signal: AbortSignal) {
+    return requestFile(`${base(projectId)}/files/${encodeURIComponent(fileId)}`, token, signal, async (response) => {
+        const payload = await response.json() as { code: number; data: ProductionFile };
+        if (payload?.code !== 0 || payload.data?.id !== fileId) throw new ApiError("文件信息异常，请重新载入图片", 502);
+        return checkedFile(payload.data, projectId, assetId);
+    });
+}
+
 export async function fetchProductionFileBlob(token: string, projectId: string, assetId: string, file: ProductionFile, download: boolean, signal: AbortSignal) {
     checkedFile(file, projectId, assetId);
     return requestFile(`${base(projectId)}/files/${encodeURIComponent(file.id)}/content${download ? "?download=1" : ""}`, token, signal, async (response) => {

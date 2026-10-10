@@ -32,11 +32,12 @@ export function serializeApiParams(params?: ApiParams) {
     return queryParams;
 }
 
-export async function apiGet<T>(url: string, params?: ApiParams, token?: string, timeoutMs?: number) {
+export async function apiGet<T>(url: string, params?: ApiParams, token?: string, timeoutMs?: number, signal?: AbortSignal) {
     return apiRequest<T>({
         url,
         method: "GET",
         timeoutMs,
+        signal,
         params: params || undefined,
         headers: token ? { Authorization: `Bearer ${token}` } : undefined,
     });
@@ -67,13 +68,14 @@ export async function apiPut<T>(url: string, body: unknown, token?: string, time
     return apiRequest<T>({ url, method: "PUT", timeoutMs, data: body, headers: { "Content-Type": "application/json", ...(token ? { Authorization: `Bearer ${token}` } : {}) } });
 }
 
-async function apiRequest<T>(config: { url: string; method: "GET" | "POST" | "PUT" | "DELETE"; timeoutMs?: number; params?: ApiParams; data?: unknown; headers?: Record<string, string> }) {
+async function apiRequest<T>(config: { url: string; method: "GET" | "POST" | "PUT" | "DELETE"; timeoutMs?: number; signal?: AbortSignal; params?: ApiParams; data?: unknown; headers?: Record<string, string> }) {
     let response;
     try {
         response = await axios.request<ApiResponse<T>>({
             url: config.url,
             method: config.method,
             timeout: config.timeoutMs,
+            signal: config.signal,
             params: config.params,
             paramsSerializer: { serialize: (params) => serializeApiParams(params as ApiParams).toString() },
             data: config.data,

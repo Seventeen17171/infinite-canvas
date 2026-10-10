@@ -26,8 +26,8 @@ function checkedAsset(asset: ProductionAsset, projectId: string, id?: string) {
     }
     return asset;
 }
-export async function fetchProductionAssets(token: string, projectId: string, query: { category?: AssetCategory; q?: string; page?: number; pageSize?: number } = {}) {
-    const result = await apiGet<AssetList>(base(projectId), query, token, 30_000);
+export async function fetchProductionAssets(token: string, projectId: string, query: { category?: AssetCategory; q?: string; page?: number; pageSize?: number } = {}, signal?: AbortSignal) {
+    const result = await apiGet<AssetList>(base(projectId), query, token, 30_000, signal);
     if (!result || !Array.isArray(result.items) || !integer(result.total) || !integer(result.counts?.character) || !integer(result.counts?.scene)) throw new ApiError("资产列表响应异常，请重试", 502);
     result.items.forEach((asset) => checkedAsset(asset, projectId));
     return result;

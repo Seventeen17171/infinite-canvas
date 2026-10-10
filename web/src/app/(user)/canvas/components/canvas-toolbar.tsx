@@ -8,7 +8,7 @@ import { useThemeStore } from "@/stores/use-theme-store";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { AnimatedThemeToggler } from "@/components/ui/animated-theme-toggler";
 
-export type CanvasToolbarAction = "tool" | "undo" | "redo" | "text" | "group" | "image" | "video" | "audio" | "panorama" | "director" | "config" | "upload" | "library" | "assets" | "style" | "delete" | "clear";
+export type CanvasToolbarAction = "tool" | "undo" | "redo" | "text" | "group" | "image" | "video" | "audio" | "panorama" | "director" | "config" | "upload" | "library" | "assets" | "projectAssets" | "style" | "delete" | "clear";
 
 export function CanvasToolbar({
     visibleActions,
@@ -38,6 +38,7 @@ export function CanvasToolbar({
     onShowImageInfoChange,
     onOpenAssetLibrary,
     onOpenMyAssets,
+    onOpenProjectAssets,
 }: {
     visibleActions?: readonly CanvasToolbarAction[];
     disabled?: boolean;
@@ -66,6 +67,7 @@ export function CanvasToolbar({
     onShowImageInfoChange?: (show: boolean) => void;
     onOpenAssetLibrary?: () => void;
     onOpenMyAssets?: () => void;
+    onOpenProjectAssets?: () => void;
 }) {
     const visible = (action: CanvasToolbarAction) => !visibleActions || visibleActions.includes(action);
     const wrapRef = useRef<HTMLDivElement>(null);
@@ -156,6 +158,11 @@ export function CanvasToolbar({
                 {visible("upload") ? (
                     <ToolbarButton disabled={disabled} id="tool-upload" label="上传素材" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onUpload}>
                         <Upload className="size-4.5" />
+                    </ToolbarButton>
+                ) : null}
+                {onOpenProjectAssets && visible("projectAssets") ? (
+                    <ToolbarButton disabled={disabled} id="tool-projectAssets" label="项目资产" hovered={hovered} hoverStyle={hoverStyle} wrapRef={wrapRef} onTipX={setTipX} onHover={setHovered} onClick={onOpenProjectAssets}>
+                        <ProjectIcon name="assets" />
                     </ToolbarButton>
                 ) : null}
                 {visible("library") || visible("assets") ? <Divider theme={theme} /> : null}
@@ -367,6 +374,7 @@ function toolLabel(id: string) {
     if (id === "tool-upload") return "上传素材";
     if (id === "tool-library") return "素材库";
     if (id === "tool-assets") return "我的素材";
+    if (id === "tool-projectAssets") return "项目资产";
     if (id === "tool-style") return "画布外观";
     if (id === "tool-delete") return "删除选中";
     if (id === "tool-clear") return "清空画布";

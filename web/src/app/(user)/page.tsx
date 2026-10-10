@@ -121,7 +121,7 @@ export default function LandingPage() {
                         </article>
                         <aside className={styles.upcoming} aria-label="后续建设内容">
                             <span>接下来</span>
-                            <p>图片资产与画布引用、剧本分析将逐步接入；当前尚未开放 AI 图片/视频生成与积分结算。</p>
+                            <p>项目图片可上传并引用到画布；剧本分析、AI 图片/视频生成及积分结算尚未开放。</p>
                         </aside>
                     </div>
                 </section>

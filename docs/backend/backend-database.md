@@ -219,14 +219,16 @@ GET `/api/v1/production/projects/:id/budget` 仅创建者/当前组长可读，�
 | `id` | string | 服务端生成的文档主键 |
 | `project_id` / `workspace_id` | string | 服务端根据授权项目及其 `canvas` 工作台派生，与更新时间组成查询索引 |
 | `title` | string | 去首尾空白后 1–80 字，无控制字符 |
-| `content` | text | schemaVersion=1 的 JSON 快照，只包含文本/组节点、连线、视口和背景 |
+| `content` | text | schemaVersion=1 的 JSON 快照，包含文本/组/项目图片引用节点、连线、视口和背景；不存图片字节或媒体 URL |
 | `revision` | int64 | 初始 1；按文档 ID、项目、工作台、预期版本条件保存后递增 |
 | `created_by` / `updated_by` | string | 实际创建/最后保存账号，服务端写入 |
 | `created_at` / `updated_at` | string | 服务端 UTC 时间 |
 
 四接口位于 `/api/v1/production/projects/:projectId/workspaces/:kind/documents`，只支持 `kind=canvas`：GET 列表、POST 新建，`/:documentId` 的 GET 打开与 PUT 保存。每次都在同一事务重查有效账号、项目创建者/当前负责人身份、空间和文档复合归属；管理员不默认获得项目访问。写入与项目改派采用相同项目行锁，文档 CAS 不匹配返回 409，禁止静默覆盖。SQLite 的短事务仍使用已有单连接；并发验证不代表 PostgreSQL/MySQL 生产容量。
 
-请求最大 2 MiB，最多 300 节点、600 连线，拒绝未知字段。节点 `type=text|group`，metadata 仅 `content/groupId/fontSize`；坐标在 ±1,000,000、宽高 16–10,000、字号 8–128、缩放 0.05–10，背景为 `dots|lines|blank`。节点/连线 ID 分别唯一；端点必须存在且不能自连，组引用必须指向有效组且不能循环。正文不支持媒体/模型/文件或工具执行字段。
+请求最大 2 MiB，最多 300 节点、600 连线，拒绝未知字段。节点 `type=text|group` 的 metadata 仅 `content/groupId/fontSize`；`type=image` 最多 20 个，metadata 仅规范 `asset-UUID` 的 `assetId`、`file-UUID` 的 `fileId` 和可选 `groupId`。图片不可携带 `content`、URL、blob、base64、文件名快照或存储路径，普通节点不可携带引用字段；既有文本/组规范化顺序与幂等摘要保持不变。坐标在 ±1,000,000、宽高 16–10,000、字号 8–128、缩放 0.05–10，背景为 `dots|lines|blank`。节点/连线 ID 分别唯一；端点必须存在且不能自连，新图片可连接图片/文本，不能与组连接；既有文本/组连线合同保留。组归属必须指向有效组且不能循环。
+
+图片引用继承文档路径的项目身份，不新增表。新建、另存及保存新增/替换/复制引用，在同一项目锁及 CAS 事务内查验资产、文件都属于该项目且 `file.asset_id` 匹配。缺失或错配返回 422，整次文档和回执写入回滚。当前文档已存在的相同节点 ID + assetId + fileId 可保留后来缺失的索引，从而继续保存其他内容；该豁免不适用于新节点/新文档，存在但错配的文件仍拒绝。读取文档不因引用或磁盘缺失失败；私有图片仍由逐次授权的元数据/内容接口读取，不会因文档中的 ID 绕过文件授权。成功幂等重放先复验当前项目权限，再按原摘要返回回执，不因后续索引缺失重复执行。
 
 ### canvas_document_requests
 

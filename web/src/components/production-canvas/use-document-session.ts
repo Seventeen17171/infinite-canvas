@@ -11,6 +11,7 @@ type Phase = "loading" | "ready" | "saving" | "conflict" | "error" | "blocked" |
 type Draft = { schema: 1; actorId: string; projectId: string; documentId: string; title: string; content: ProductionCanvasContent; revision: number; dirty: boolean; pending?: CanvasSaveInput; copyPending?: CanvasDocumentInput };
 type View = {
     scope: string;
+    token: string;
     phase: Phase;
     document?: ProductionCanvasDocument;
     title: string;
@@ -44,6 +45,7 @@ type Session = {
     save: () => Promise<void>;
     reload: () => Promise<void>;
     copy: () => Promise<string | undefined>;
+    block: (error: unknown) => void;
 };
 const fingerprint = (title: string, content: ProductionCanvasContent) => JSON.stringify([title.trim(), content]);
 const errorText = (error: unknown) => (error instanceof Error ? error.message : "操作失败，请重试");
@@ -54,7 +56,7 @@ export function useDocumentSession(projectId: string, documentId: string, enable
     const actorId = useUserStore((state) => state.user?.id || "");
     const sessionRevision = useUserStore((state) => state.sessionRevision);
     const scope = `${sessionRevision}:${actorId}:${projectId}:${documentId}:${enabled}`;
-    const initial: View = { scope, phase: "loading", title: "", revision: 0, dirty: false, message: "", draftError: "", draftPending: false, restored: false, loadEpoch: 0, retryPending: false, retryCopyPending: false };
+    const initial: View = { scope, token, phase: "loading", title: "", revision: 0, dirty: false, message: "", draftError: "", draftPending: false, restored: false, loadEpoch: 0, retryPending: false, retryCopyPending: false };
     const [view, setView] = useState<View>(initial);
     const ref = useRef<Session | null>(null);
 
@@ -78,6 +80,7 @@ export function useDocumentSession(projectId: string, documentId: string, enable
             seenRevision: 0,
             queue: Promise.resolve(),
             busy: false,
+            block: (error) => { if (active()) block(error); },
             update(patch, persist = false) {
                 session.view = { ...session.view, ...patch };
                 if (persist) {
@@ -343,7 +346,7 @@ export function useDocumentSession(projectId: string, documentId: string, enable
         // eslint-disable-next-line react-hooks/exhaustive-deps
     }, [scope, token]);
 
-    const current = view.scope === scope ? view : initial;
+    const current = view.scope === scope && view.token === token ? view : initial;
     const edit = (patch: Partial<Pick<View, "title" | "content">>) => {
         const session = ref.current;
         if (!session || session.copyPending || session.view.scope !== scope || !session.view.content || ["loading", "blocked", "reloading", "copying"].includes(session.view.phase)) return;
@@ -358,5 +361,6 @@ export function useDocumentSession(projectId: string, documentId: string, enable
         reload: () => ref.current?.reload(),
         copy: () => ref.current?.copy(),
         flush: () => ref.current?.flush(),
+        deny: (error: unknown) => { if (ref.current?.view.scope === scope && ref.current.view.token === token) ref.current.block(error); },
     };
 }

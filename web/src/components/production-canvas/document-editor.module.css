@@ -59,3 +59,7 @@
     overflow: visible;
     pointer-events: none;
 }
+.referenceImage { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+.referencePlaceholder { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 12px; max-width: 280px; padding: 20px; color: var(--editor-muted); font-size: 13px; text-align: center; }
+.referencePlaceholder button { border: 1px solid var(--editor-border); border-radius: 8px; padding: 6px 12px; color: var(--editor-text); background: var(--editor-panel); }
+.referencePlaceholder button:focus-visible { outline: 2px solid var(--editor-active); outline-offset: 3px; }

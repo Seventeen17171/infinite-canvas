@@ -32,6 +32,8 @@ type CanvasNodeProps = {
     now?: number;
     renderPanel?: (node: CanvasNodeData) => ReactNode;
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
+    renderImageContent?: (node: CanvasNodeData) => ReactNode;
+    hasCustomImageContent?: boolean;
     batchCount?: number;
     groupChildCount?: number;
     isGroupDropTarget?: boolean;
@@ -68,6 +70,7 @@ type NodeContentRendererProps = {
     batchRecovering: boolean;
     now?: number;
     renderNodeContent?: (node: CanvasNodeData) => ReactNode;
+    renderImageContent?: (node: CanvasNodeData) => ReactNode;
     onContentChange: (nodeId: string, content: string) => void;
     onStopEditing: () => void;
     mentionReferences: CanvasResourceReference[];
@@ -93,6 +96,8 @@ export const CanvasNode = React.memo(function CanvasNode({
     now,
     renderPanel,
     renderNodeContent,
+    renderImageContent,
+    hasCustomImageContent = false,
     batchCount = 0,
     groupChildCount = 0,
     isGroupDropTarget = false,
@@ -121,7 +126,7 @@ export const CanvasNode = React.memo(function CanvasNode({
     const [isEditingTitle, setIsEditingTitle] = useState(false);
     const [titleDraft, setTitleDraft] = useState(data.title || "");
     const isGroup = data.type === CanvasNodeType.Group;
-    const hasImageContent = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.content);
+    const hasImageContent = isCanvasImageNodeType(data.type) && (hasCustomImageContent || Boolean(data.metadata?.content));
     const hasVideoContent = data.type === CanvasNodeType.Video && Boolean(data.metadata?.content);
     const hasAudioContent = data.type === CanvasNodeType.Audio && Boolean(data.metadata?.content);
     const isBatchRoot = isCanvasImageNodeType(data.type) && Boolean(data.metadata?.isBatchRoot) && batchCount > 1;
@@ -405,6 +410,7 @@ export const CanvasNode = React.memo(function CanvasNode({
                             batchOpening={batchOpening}
                             batchRecovering={batchRecovering}
                             renderNodeContent={renderNodeContent}
+                            renderImageContent={renderImageContent}
                             mentionReferences={mentionReferences}
                             onContentChange={onContentChange}
                             onStopEditing={() => setIsEditingContent(false)}
@@ -448,6 +454,7 @@ export const CanvasNode = React.memo(function CanvasNode({
 function NodeContent(props: NodeContentRendererProps) {
     if (props.node.type === CanvasNodeType.Group) return null;
     if ((props.node.type === CanvasNodeType.Config || props.node.type === CanvasNodeType.Director) && props.renderNodeContent) return props.renderNodeContent(props.node);
+    if (props.node.type === CanvasNodeType.Image && props.renderImageContent) return props.renderImageContent(props.node);
     if (props.isBatchRoot) return props.node.type === CanvasNodeType.Panorama ? <PanoramaNodeContent {...props} /> : <ImageNodeContent {...props} />;
     if (props.node.metadata?.status === "loading" && (props.node.type !== CanvasNodeType.Text || !props.node.metadata.content)) return <LoadingContent node={props.node} theme={props.theme} now={props.now} />;
     if (props.node.metadata?.status === "error") return <ErrorContent node={props.node} theme={props.theme} onRetry={props.onRetry} />;

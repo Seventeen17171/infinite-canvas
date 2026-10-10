@@ -168,8 +168,11 @@ export default function CanvasDocumentPage() {
                 <main className={styles.editor} data-project-id={id} data-workspace-id={query.data?.workspace?.id} data-workspace-kind="canvas">
                     <DocumentEditor
                         key={`${id}:${documentId}:${session.loadEpoch}`}
+                        projectId={id}
+                        documentId={documentId}
                         content={session.content}
                         onChange={session.setContent}
+                        onDenied={session.deny}
                         disabled={session.retryCopyPending || session.phase === "copying" || session.phase === "reloading"}
                         header={header}
                         notice={notice}

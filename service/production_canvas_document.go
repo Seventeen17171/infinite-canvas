@@ -139,6 +139,9 @@ func CreateProductionCanvasDocument(ctx context.Context, projectID, kind string,
 			}
 			return nil
 		}
+		if err := validateProductionCanvasReferences(tx, projectID, request.Content, nil); err != nil {
+			return err
+		}
 		timestamp := now()
 		document = model.ProductionCanvasDocument{ID: newID("document"), ProjectID: projectID, WorkspaceID: workspace.ID, Title: request.Title, Content: request.Content, Revision: 1, CreatedBy: actor.ID, UpdatedBy: actor.ID, CreatedAt: timestamp, UpdatedAt: timestamp}
 		if err := tx.CreateCanvasDocument(document); err != nil {
@@ -182,6 +185,9 @@ func SaveProductionCanvasDocument(ctx context.Context, projectID, kind, id strin
 			}
 			receipt = canvasDocumentReceipt(previous)
 			return nil
+		}
+		if err := validateProductionCanvasReferences(tx, projectID, request.Content, document.Content); err != nil {
+			return err
 		}
 		document.Title, document.Content, document.UpdatedBy, document.UpdatedAt = request.Title, request.Content, actor.ID, now()
 		updated, err := tx.SaveCanvasDocument(document, request.Revision)

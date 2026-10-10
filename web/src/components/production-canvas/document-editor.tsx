@@ -18,19 +18,22 @@ import { canvasThemes } from "@/lib/canvas-theme";
 import type { ProductionCanvasContent, ProductionCanvasNode } from "@/services/api/production-canvas-documents";
 import { useThemeStore } from "@/stores/use-theme-store";
 import styles from "./document-editor.module.css";
+import { ProjectImagePicker } from "./project-image-picker";
+import { canvasImageLimit, imageReference, imageReferenceKey, referenceNode, type ImageReference } from "./image-reference";
+import { useCanvasImages } from "./use-canvas-images";
 
-type Props = { content: ProductionCanvasContent; onChange: (content: ProductionCanvasContent) => void; disabled?: boolean; header?: ReactNode; notice?: ReactNode };
+type Props = { projectId: string; documentId: string; content: ProductionCanvasContent; onChange: (content: ProductionCanvasContent) => void; onDenied: (error: unknown) => void; disabled?: boolean; header?: ReactNode; notice?: ReactNode };
 type DragState = { x: number; y: number; positions: Map<string, Position>; started: boolean };
 const noop = () => {};
-const documentActions: readonly CanvasToolbarAction[] = ["tool", "undo", "redo", "text", "group", "style", "delete", "clear"];
+const documentActions: readonly CanvasToolbarAction[] = ["tool", "undo", "redo", "text", "group", "projectAssets", "style", "delete", "clear"];
 const nodeActions = ["delete", "decreaseFont", "increaseFont"];
 const documentShortcuts = [
     { label: "Space + 拖动", value: "临时反转选择/移动工具" },
     { label: "滚轮", value: "缩放画布" },
     { label: "双击文本 / 标题", value: "编辑内容 / 节点名称" },
-    { label: "拖动节点两侧圆点", value: "连接文本节点" },
+    { label: "拖动节点两侧圆点", value: "连接文本或图片节点" },
     { label: "Shift / Ctrl / Cmd + 点击", value: "追加选择节点" },
-    { label: "Ctrl / Cmd + G", value: "将选中文本加入分组" },
+    { label: "Ctrl / Cmd + G", value: "将选中节点加入分组" },
     { label: "Ctrl / Cmd + Z", value: "撤销" },
     { label: "Ctrl / Cmd + Shift + Z", value: "重做" },
     { label: "右键节点", value: "复制或删除" },
@@ -39,7 +42,7 @@ const documentShortcuts = [
 const bound = (value: number, min = -1_000_000, max = 1_000_000) => Math.min(max, Math.max(min, value));
 const isInput = (target: EventTarget | null) => target instanceof Element && Boolean(target.closest("input,textarea,select,[contenteditable='true']"));
 
-export function DocumentEditor({ content, onChange, disabled = false, header, notice }: Props) {
+export function DocumentEditor({ projectId, documentId, content, onChange, onDenied, disabled = false, header, notice }: Props) {
     const { message, modal } = App.useApp();
     const theme = canvasThemes[useThemeStore((state) => state.theme)];
     const rootRef = useRef<HTMLDivElement>(null);
@@ -68,6 +71,8 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
     const [panelWidth, setPanelWidth] = useState(280);
     const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
     const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+    const [pickerOpen, setPickerOpen] = useState(false);
+    const media = useCanvasImages(projectId, documentId, content, size, !pickerOpen && !disabled, onDenied);
 
     useLayoutEffect(() => {
         onChangeRef.current = onChange;
@@ -148,8 +153,8 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
         (fromNodeId: string, toNodeId: string) => {
             const current = contentRef.current;
             if (disabledRef.current || fromNodeId === toNodeId) return;
-            const from = current.nodes.find((node) => node.id === fromNodeId && node.type === CanvasNodeType.Text);
-            const to = current.nodes.find((node) => node.id === toNodeId && node.type === CanvasNodeType.Text);
+            const from = current.nodes.find((node) => node.id === fromNodeId && node.type !== CanvasNodeType.Group);
+            const to = current.nodes.find((node) => node.id === toNodeId && node.type !== CanvasNodeType.Group);
             if (!from || !to) return;
             if (current.connections.some((connection) => connection.fromNodeId === fromNodeId && connection.toNodeId === toNodeId)) {
                 void message.warning("这两个节点之间已有连线");
@@ -256,7 +261,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
                 void message.warning("每份画布最多 300 个节点");
                 return;
             }
-            const chosen = type === CanvasNodeType.Group ? current.nodes.filter((node) => selectionRef.current.has(node.id) && node.type === CanvasNodeType.Text) : [];
+            const chosen = type === CanvasNodeType.Group ? current.nodes.filter((node) => selectionRef.current.has(node.id) && node.type !== CanvasNodeType.Group) : [];
             const bounds = chosen.length ? getNodeBounds(chosen) : null;
             const rect = containerRef.current?.getBoundingClientRect();
             const center = at || worldPoint((rect?.left || 0) + (rect?.width || 1000) / 2, (rect?.top || 0) + (rect?.height || 600) / 2);
@@ -283,6 +288,21 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
         },
         [change, choose, message, worldPoint],
     );
+    const insertImage = (selection: ImageReference & { title: string; width: number; height: number }) => {
+        setPickerOpen(false);
+        const current = contentRef.current;
+        if (disabledRef.current) return;
+        if (current.nodes.length >= 300 || current.nodes.filter((node) => node.type === CanvasNodeType.Image).length >= canvasImageLimit) {
+            void message.warning("每份画布最多 300 个节点，其中图片引用最多 20 个");
+            return;
+        }
+        const rect = containerRef.current?.getBoundingClientRect();
+        const center = worldPoint((rect?.left || 0) + (rect?.width || 1000) / 2, (rect?.top || 0) + (rect?.height || 600) / 2);
+        const node = referenceNode(selection, selection.title, selection.width, selection.height, center);
+        change((value) => ({ ...value, nodes: [...value.nodes, node] }));
+        choose(new Set([node.id]));
+        surfaceRef.current?.focus({ preventScroll: true });
+    };
     const removeContent = useCallback(
         (ids: Set<string>, edgeId?: string | null) => {
             if (disabledRef.current || (!ids.size && !edgeId)) return;
@@ -311,7 +331,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
             });
         }
         const internalConnections = current.connections.filter((edge) => ids.has(edge.fromNodeId) && ids.has(edge.toNodeId));
-        if (current.nodes.length + ids.size > 300 || current.connections.length + internalConnections.length > 600) {
+        if (current.nodes.length + ids.size > 300 || current.connections.length + internalConnections.length > 600 || current.nodes.filter((node) => node.type === CanvasNodeType.Image).length + current.nodes.filter((node) => ids.has(node.id) && node.type === CanvasNodeType.Image).length > canvasImageLimit) {
             void message.warning("复制后将超过画布节点或连线数量上限");
             return;
         }
@@ -350,7 +370,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
     );
     useEffect(() => {
         const key = (event: KeyboardEvent) => {
-            if (disabledRef.current || !rootRef.current?.contains(document.activeElement) || isInput(event.target)) return;
+            if (pickerOpen || disabledRef.current || !rootRef.current?.contains(document.activeElement) || isInput(event.target)) return;
             const command = event.ctrlKey || event.metaKey;
             if (event.key === "Escape") {
                 resetConnection();
@@ -374,7 +394,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
         };
         window.addEventListener("keydown", key);
         return () => window.removeEventListener("keydown", key);
-    }, [addNode, choose, deleteSelection, resetConnection, undo]);
+    }, [addNode, choose, deleteSelection, pickerOpen, resetConnection, undo]);
 
     const startNodeDrag = (event: ReactMouseEvent, id: string) => {
         if (disabled || tool === "pan" || event.button !== 0 || isInput(event.target)) return;
@@ -411,7 +431,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
     const changeNodeText = useCallback(
         (id: string, text: string) => {
             const node = contentRef.current.nodes.find((item) => item.id === id);
-            if (node) patchNode(id, { metadata: { ...node.metadata, content: text.slice(0, 50_000) } }, `text:${id}`);
+            if (node?.type === CanvasNodeType.Text) patchNode(id, { metadata: { ...node.metadata, content: text.slice(0, 50_000) } }, `text:${id}`);
         },
         [patchNode],
     );
@@ -453,7 +473,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
     };
     const changeFontSize = (id: string, increment: number) => {
         const node = contentRef.current.nodes.find((item) => item.id === id);
-        if (node) patchNode(id, { metadata: { ...node.metadata, fontSize: bound((node.metadata?.fontSize || 14) + increment, 8, 128) } }, `font:${id}`);
+        if (node?.type === CanvasNodeType.Text) patchNode(id, { metadata: { ...node.metadata, fontSize: bound((node.metadata?.fontSize || 14) + increment, 8, 128) } }, `font:${id}`);
     };
     const hoverNode = drag.current?.started || connecting ? null : content.nodes.find((node) => node.id === hoveredNodeId) || activeNode || null;
 
@@ -534,6 +554,17 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
                                 isConnecting={Boolean(connecting)}
                                 showPanel={false}
                                 showImageInfo={false}
+                                hasCustomImageContent={node.type === CanvasNodeType.Image && Boolean(media.images[imageReferenceKey(imageReference(node) || { assetId: "", fileId: "" })]?.url)}
+                                renderImageContent={node.type === CanvasNodeType.Image ? () => {
+                                    const reference = imageReference(node);
+                                    const key = reference ? imageReferenceKey(reference) : "";
+                                    const image = media.images[key];
+                                    return image?.url ? <img src={image.url} alt={node.title} draggable={false} className={styles.referenceImage} onError={() => media.failed(key)} /> : <div className={styles.referencePlaceholder} data-canvas-no-zoom>
+                                        <ProjectIcon name="assets" style={{ fontSize: 24 }} />
+                                        <span>{image?.phase === "loading" ? "正在读取项目图片…" : image?.message || "项目资产图片"}</span>
+                                        {image?.phase !== "loading" && <button type="button" onMouseDown={(event) => event.stopPropagation()} onClick={(event) => { event.stopPropagation(); media.load(key); }}>{image?.phase === "error" ? "重新加载" : "点击加载图片"}</button>}
+                                    </div>;
+                                } : undefined}
                                 groupChildCount={node.type === CanvasNodeType.Group ? content.nodes.filter((child) => child.metadata?.groupId === node.id).length : undefined}
                                 onMouseDown={startNodeDrag}
                                 onHoverStart={setHoveredNodeId}
@@ -585,6 +616,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
                     showImageInfoControl={false}
                     onAddText={() => addNode(CanvasNodeType.Text)}
                     onAddGroup={() => addNode(CanvasNodeType.Group)}
+                    onOpenProjectAssets={() => setPickerOpen(true)}
                     onUndo={() => undo()}
                     onRedo={() => undo(true)}
                     onDelete={deleteSelection}
@@ -609,6 +641,7 @@ export function DocumentEditor({ content, onChange, disabled = false, header, no
                     }}
                     onBackgroundModeChange={(backgroundMode) => change((value) => ({ ...value, backgroundMode }))}
                 />
+                {pickerOpen && !disabled && <ProjectImagePicker projectId={projectId} documentId={documentId} onCancel={() => setPickerOpen(false)} onInsert={insertImage} onDenied={onDenied} />}
                 {miniMap ? <Minimap nodes={content.nodes} viewport={content.viewport} viewportSize={size} onViewportChange={viewportChange} /> : null}
                 <CanvasZoomControls scale={content.viewport.k} onScaleChange={zoom} onReset={fit} isMiniMapOpen={miniMap} onToggleMiniMap={() => setMiniMap((value) => !value)} disabled={disabled} shortcuts={documentShortcuts} />
                 {contextMenu && !disabled ? (

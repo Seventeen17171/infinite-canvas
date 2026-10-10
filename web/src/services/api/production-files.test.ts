@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ApiError } from "./request";
-import { fetchAssetFiles, fetchProductionFileBlob, fetchProductionFileUpload, productionFileLimit, productionImageError, uploadProductionFile, validProductionUpload, type ProductionFile, type ProductionFileUploadRequest } from "./production-files";
+import { fetchAssetFiles, fetchProductionFile, fetchProductionFileBlob, fetchProductionFileUpload, productionFileLimit, productionImageError, uploadProductionFile, validProductionUpload, type ProductionFile, type ProductionFileUploadRequest } from "./production-files";
 
 const file: ProductionFile = { id: "file-2e43e9f3-8343-4aae-9eb0-cb9a46145d3e", projectId: "project-a", assetId: "asset-a", name: "人物参考.png", mimeType: "image/png", bytes: 3, createdAt: "2026-10-10T00:00:00Z" };
 const signal = () => new AbortController().signal;
@@ -11,6 +11,21 @@ async function withFetch(mock: typeof fetch, run: () => Promise<void>) {
     try { await run(); } finally { globalThis.fetch = original; }
 }
 const rejectStatus = (status: number) => (error: unknown) => error instanceof ApiError && error.status === status;
+
+test("saved canvas reference metadata is reauthorized and checked against all scoped IDs", async () => {
+    await withFetch((async (input, init) => {
+        assert.equal(input, `/api/v1/production/projects/project-a/files/${file.id}`);
+        assert.equal(new Headers(init?.headers).get("authorization"), "Bearer token");
+        assert.equal(init?.cache, "no-store");
+        assert.equal(init?.redirect, "error");
+        return Response.json({ code: 0, data: file });
+    }) as typeof fetch, async () => assert.deepEqual(await fetchProductionFile("token", "project-a", "asset-a", file.id, signal()), file));
+    for (const invalid of [{ ...file, assetId: "asset-b" }, { ...file, projectId: "project-b" }, { ...file, id: "file-80972f80-b817-434e-90f9-b15664445c4e" }, { ...file, mimeType: "text/html" }]) {
+        await withFetch((async () => Response.json({ code: 0, data: invalid })) as typeof fetch, async () => {
+            await assert.rejects(fetchProductionFile("token", "project-a", "asset-a", file.id, signal()), rejectStatus(502));
+        });
+    }
+});
 
 test("private list sends bearer only as a header and validates project/asset ownership", async () => {
     await withFetch((async (input, init) => {

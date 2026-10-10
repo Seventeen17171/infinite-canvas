@@ -4,12 +4,12 @@ import { ApiError, apiGet, apiPost, apiPut } from "./request";
 
 export type ProductionCanvasNode = {
     id: string;
-    type: CanvasNodeType.Text | CanvasNodeType.Group;
+    type: CanvasNodeType.Text | CanvasNodeType.Group | CanvasNodeType.Image;
     title: string;
     position: Position;
     width: number;
     height: number;
-    metadata?: { content?: string; groupId?: string; fontSize?: number };
+    metadata?: { content?: string; groupId?: string; fontSize?: number; assetId?: string; fileId?: string };
 };
 export type ProductionCanvasContent = {
     schemaVersion: 1;
