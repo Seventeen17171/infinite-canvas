@@ -26,12 +26,12 @@ export function WorkspaceShell({ project, children }: { project?: ProductionProj
     const router = useRouter();
     const user = useUserStore((state) => state.user);
     const clearSession = useUserStore((state) => state.clearSession);
-    const { collapsed, motionEnabled, load, toggle, toggleMotion } = useNavigationStore();
+    const { collapsed, load, toggle } = useNavigationStore();
     const contentRef = useRef<HTMLDivElement>(null);
     useEffect(load, [load]);
     useEffect(() => {
         const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
-        if (!motionEnabled || preference.matches) return;
+        if (preference.matches) return;
         // Animate the existing content surface; never remount forms or the project shell.
         const animation = contentRef.current?.animate(
             [{ opacity: 0.72, transform: "translateY(4px)" }, { opacity: 1, transform: "translateY(0)" }],
@@ -40,7 +40,7 @@ export function WorkspaceShell({ project, children }: { project?: ProductionProj
         const stop = () => { if (preference.matches) animation?.cancel(); };
         preference.addEventListener("change", stop);
         return () => { animation?.cancel(); preference.removeEventListener("change", stop); };
-    }, [pathname, motionEnabled]);
+    }, [pathname]);
     const base = project ? `/projects/${encodeURIComponent(project.id)}` : "";
     // Only a project returned for this route may label its navigation.
     const currentProject = project && (pathname === base || pathname.startsWith(`${base}/`)) ? project : undefined;
@@ -76,7 +76,7 @@ export function WorkspaceShell({ project, children }: { project?: ProductionProj
         );
     };
     return (
-        <div className={`${styles.shell} ${collapsed ? styles.collapsed : ""}`} style={colors} data-testid="workspace-shell" data-sidebar-collapsed={collapsed} data-workspace-motion={motionEnabled ? "on" : "off"}>
+        <div className={`${styles.shell} ${collapsed ? styles.collapsed : ""}`} style={colors} data-testid="workspace-shell" data-sidebar-collapsed={collapsed}>
             <aside className={styles.sidebar} aria-label="工作站侧栏" id="workspace-sidebar">
                 <Link href="/projects" prefetch={false} className={styles.brand} aria-label="映序 Studio 项目库">
                     <span className={styles.logo} aria-hidden />
@@ -105,6 +105,7 @@ export function WorkspaceShell({ project, children }: { project?: ProductionProj
                 </nav>
                 <div className={styles.sidebarFooter}>
                     <Dropdown trigger={["click"]} placement="topLeft" menu={{ items: [
+                        { key: "home", icon: <ProjectIcon name="overview" />, label: <Link href="/" prefetch={false}>产品首页</Link> },
                         { key: "logout", icon: <ProjectIcon name="logout" />, label: "退出登录", onClick: () => { clearSession(); router.replace("/login"); } },
                     ] }}>
                         <button type="button" className={styles.account} aria-label={`账号菜单：${account}`}>
@@ -130,9 +131,6 @@ export function WorkspaceShell({ project, children }: { project?: ProductionProj
                             {!currentProject && !isAdmin && pathname !== "/projects" && <><li className={styles.separator} aria-hidden>/</li><li><span aria-current="page">项目空间</span></li></>}
                         </ol>
                     </nav>
-                    <Tooltip title={motionEnabled ? "暂停界面动效" : "开启界面动效"}>
-                        <Button className={styles.motionButton} type="text" aria-label={motionEnabled ? "暂停界面动效" : "开启界面动效"} aria-pressed={motionEnabled} icon={<ProjectIcon name={motionEnabled ? "pause" : "play"} />} onClick={toggleMotion}>动效</Button>
-                    </Tooltip>
                 </header>
                 <div ref={contentRef} className={styles.content} data-testid="workspace-content">{children}</div>
             </div>

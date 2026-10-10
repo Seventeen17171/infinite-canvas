@@ -10,7 +10,6 @@ import { usePathname } from "next/navigation";
 
 import { ClientRootInit } from "@/components/layout/client-root-init";
 import { getAntThemeConfig, getStudioAntThemeConfig } from "@/lib/app-theme";
-import { useNavigationStore } from "@/stores/use-navigation-store";
 import { useThemeStore } from "@/stores/use-theme-store";
 
 const queryClient = new QueryClient({
@@ -26,22 +25,19 @@ const queryClient = new QueryClient({
 export function AppProviders({ children }: { children: ReactNode }) {
     const pathname = usePathname();
     const theme = useThemeStore((state) => state.theme);
-    const motionEnabled = useNavigationStore((state) => state.motionEnabled);
-    const loadNavigation = useNavigationStore((state) => state.load);
     const [reducedMotion, setReducedMotion] = useState(true);
     const isDocument = /^\/projects\/[^/]+\/[^/]+\/documents\/[^/]+(?:\/|$)/.test(pathname);
-    const studio = !isDocument && (pathname === "/login" || /^\/(projects|admin)(?:\/|$)/.test(pathname));
+    const studio = !isDocument && (pathname === "/" || pathname === "/login" || /^\/(projects|admin)(?:\/|$)/.test(pathname));
     const dark = studio || theme === "dark";
-    const motion = motionEnabled && !reducedMotion;
+    const motion = !reducedMotion;
 
     useEffect(() => {
-        loadNavigation();
         const preference = window.matchMedia("(prefers-reduced-motion: reduce)");
         const update = () => setReducedMotion(preference.matches);
         update();
         preference.addEventListener("change", update);
         return () => preference.removeEventListener("change", update);
-    }, [loadNavigation]);
+    }, []);
 
     useLayoutEffect(() => {
         document.documentElement.classList.toggle("dark", dark);

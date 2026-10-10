@@ -2,6 +2,7 @@
 
 import { LockOutlined, UserOutlined } from "@ant-design/icons";
 import { App, Button, Form, Input, Segmented, Space } from "antd";
+import Link from "next/link";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef, useState } from "react";
 
@@ -124,10 +125,10 @@ function LoginContent() {
 
     return (
         <main className={styles.page}>
-            <div className={styles.brand}>
+            <Link href="/" prefetch={false} className={styles.brand} aria-label="映序 Studio 首页">
                 <span className={styles.logo} aria-hidden="true" />
                 <span>映序 <span className={styles.brandEnglish}>Studio</span></span>
-            </div>
+            </Link>
             <section className={styles.panel} aria-labelledby="login-heading">
                 <div className={styles.heading}>
                     <h1 id="login-heading">{mode === "register" ? "创建账号" : "账号登录"}</h1>

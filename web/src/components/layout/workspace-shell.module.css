@@ -84,7 +84,6 @@
 .breadcrumb a:hover { color: var(--workspace-text); text-decoration: underline; text-underline-offset: 3px; }
 .breadcrumb [aria-current="page"] { color: var(--workspace-text); font-weight: 500; }
 .separator { color: var(--workspace-subtle); }
-.motionButton { flex-shrink: 0; font-size: 12px; color: var(--workspace-muted); }
 .content { flex: 1; min-height: 0; min-width: 0; overflow: auto; scrollbar-gutter: stable; }
 .collapsed .sidebar { width: 64px; flex-basis: 64px; }
 .collapsed .brand { padding: 0 20px; }
@@ -104,11 +103,6 @@
 .sidebar::after { content: ""; position: absolute; z-index: 1; width: 1px; height: 100px; right: -1px; top: 64px; pointer-events: none; background: linear-gradient(transparent, #AEB7C1, transparent); opacity: .5; animation: silverEdge 12s ease-in-out infinite alternate; }
 @keyframes silverPass { from { transform: translateX(0); } to { transform: translateX(520%); } }
 @keyframes silverEdge { from { transform: translateY(0); } to { transform: translateY(350px); } }
-.shell[data-workspace-motion="off"] .signalTrack::after,
-.shell[data-workspace-motion="off"] .sidebar::after { animation: none; opacity: .25; }
-.shell[data-workspace-motion="off"] .sidebar,
-.shell[data-workspace-motion="off"] .navLink,
-.shell[data-workspace-motion="off"] .account { transition: none; }
 @media (prefers-reduced-motion: reduce) {
     .signalTrack::after, .sidebar::after { animation: none; opacity: .25; }
     .sidebar, .navLink, .account { transition: none; }

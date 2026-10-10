@@ -116,7 +116,7 @@
     --sidebar-ring: oklch(0.556 0 0);
 }
 
-/* Applied to the root only on team and login routes, including their portals. */
+/* Applied to the root only on public studio, team and login routes, including their portals. */
 html[data-studio="true"] {
     --background: #000000;
     --foreground: #F4F5F7;

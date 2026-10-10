@@ -1,3 +1,5 @@
+"use client";
+
 import {
     AppstoreOutlined,
     AuditOutlined,
@@ -19,8 +21,6 @@ import {
     MenuUnfoldOutlined,
     MinusOutlined,
     PictureOutlined,
-    PauseOutlined,
-    PlayCircleOutlined,
     PlusOutlined,
     ReloadOutlined,
     RedoOutlined,
@@ -48,8 +48,6 @@ const icons = {
     projects: FolderOpenOutlined,
     canvas: AppstoreOutlined,
     assets: PictureOutlined,
-    pause: PauseOutlined,
-    play: PlayCircleOutlined,
     back: ArrowLeftOutlined,
     enter: ArrowRightOutlined,
     logout: LogoutOutlined,

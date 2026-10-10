@@ -333,13 +333,6 @@
     min-width: 0;
 }
 
-:global([data-workspace-motion="off"]) .projectRow,
-:global([data-workspace-motion="off"]) .folderIcon,
-:global([data-workspace-motion="off"]) .workspaceLink,
-:global([data-workspace-motion="off"]) .workspaceIcon,
-:global([data-workspace-motion="off"]) .workspaceEnter {
-    transition: none;
-}
 @media (prefers-reduced-motion: reduce) {
     .projectRow,
     .folderIcon,

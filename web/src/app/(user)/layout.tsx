@@ -11,7 +11,7 @@ export default function UserLayout({ children }: { children: ReactNode }) {
     const token = useUserStore((state) => state.token);
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
-    const publicPage = pathname === "/login" || pathname === "/tokendance/callback";
+    const publicPage = pathname === "/" || pathname === "/login" || pathname === "/tokendance/callback";
     const projectPage = pathname === "/projects" || pathname.startsWith("/projects/");
 
     useEffect(() => {

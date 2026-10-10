@@ -124,10 +124,7 @@
     gap: 10px;
     margin-top: 24px;
 }
-:global([data-workspace-motion="off"]) .row,
-:global([data-workspace-motion="off"]) .documentIcon {
-    transition: none;
-}
+
 @media (prefers-reduced-motion: reduce) {
     .row,
     .documentIcon {
