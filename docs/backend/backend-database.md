@@ -36,6 +36,8 @@ description: 当前后端主要数据表与字段说明
 - `production_workspaces`
 - `production_canvas_documents`
 - `canvas_document_requests`
+- `production_assets`
+- `production_asset_requests`
 - `project_requests`
 - `production_project_budgets`
 - `production_budget_applications`
@@ -92,7 +94,7 @@ description: 当前后端主要数据表与字段说明
 
 ### production_workspaces
 
-项目内两个工作台的身份元数据；画布正文保存在独立 `production_canvas_documents`，图片历史与资产归属另行开发。
+项目内两个工作台的身份元数据；画布正文保存在独立 `production_canvas_documents`。人物/场景记录由 `production_assets` 统一归属项目，不在两个工作台各存一份；图片历史与媒体引用另行开发。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -100,6 +102,35 @@ description: 当前后端主要数据表与字段说明
 | `project_id` | string | 项目 ID，与 kind 组成唯一索引 |
 | `kind` | string | `canvas` 或 `assets` |
 | `created_at` | string | 创建时间 |
+
+### production_assets
+
+项目人物/场景资产记录。分类固定为人物 `character`、场景 `scene`，无需另建分类表。只提供名称和描述；没有图片、造型、提示词、模型参数或文件引用字段。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` | string | 稳定资产主键，改名不变 |
+| `project_id` | string | 所属项目；没有 workspace_id |
+| `category` | string | character / scene，本模块创建后不可修改 |
+| `name` | string | 去首尾空白后 1–80 Unicode 字符，不含控制字符 |
+| `description` | text | 最多 8000 Unicode 字符，保留正常换行和制表符 |
+| `revision` | int64 | 初始 1；按 id + project_id + revision 条件保存后递增 |
+| `created_by` / `updated_by` | string | 服务端当前有效账号 |
+| `created_at` / `updated_at` | string | RFC3339 时间 |
+
+`project_id + category + updated_at` 组合索引。列表每页默认 20、最多 100，按最近保存时间/ID 排序；名称与描述按字面子串搜索，`%`、`_` 不作通配符。total 对应筛选后数量，counts 始终返回本项目人物/场景总量。每次读取、保存和幂等重试均验证账号及项目访问，管理员无额外全项目读取；未获批预算可免费筹备资料。
+
+### production_asset_requests
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `actor_id` / `request_id` | string | 当前账号与规范化 UUID 联合主键 |
+| `payload_hash` | string | 操作、项目、资产、分类、名称、描述和基础版本的 SHA-256 摘要 |
+| `operation` | string | create / save |
+| `project_id` / `asset_id` | string | 成功请求所属项目和稳定资产 ID |
+| `revision` / `updated_at` | int64 / string | 成功提交的版本与时间 |
+
+资产更改与请求回执在同一事务提交，失败一起回滚；同键异内容返回 409。创建重试读取已创建的同一资产当前记录；保存重试返回原提交回执，不覆盖之后的新版本。禁用或改派撤权后不能重放旧请求。该表和生产资产表独立于上游个人 `assets`，不迁移或改写个人素材。
 
 ### project_requests
 
