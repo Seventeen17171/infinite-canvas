@@ -12,7 +12,7 @@ import type { WorkflowChannelSettings } from "@/components/workflow/workflow-cha
 import { useAutoDLWorkflowNames } from "@/hooks/use-autodl-workflow";
 import { isWorkflowProtocol, modelChannelApiKeyUrls, modelChannelDefaultBaseUrls, modelChannelProtocolOptions } from "@/lib/model-channel";
 import { startTokenDanceOAuth } from "@/lib/tokendance-oauth";
-import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, testChannelModel, type AdminModelChannel, type AdminModelCost, type AdminSettings, type AdminStorageProvider } from "@/services/api/admin";
+import { fetchAdminSettings, fetchChannelModels, measureAdminStorageProvider, saveAdminSettings, type AdminModelChannel, type AdminModelCost, type AdminSettings, type AdminStorageProvider } from "@/services/api/admin";
 import { clearStorageConfigCache as clearMediaStorageConfigCache } from "@/services/file-storage";
 import { clearStorageConfigCache as clearImageStorageConfigCache } from "@/services/image-storage";
 import { useUserStore } from "@/stores/use-user-store";
@@ -310,20 +310,8 @@ export default function AdminSettingsPage() {
         setTestResults({});
     };
 
-    const testModelOnline = async (model: string) => {
-        if (testChannelIndex === null) return;
-        if (!token) return;
-        const channel = normalizeChannel(channels[testChannelIndex]);
-        setTestingModels((current) => [...current, model]);
-        try {
-            const startedAt = performance.now();
-            const result = await testChannelModel(token, { index: testChannelIndex, channel, model });
-            setTestResults((current) => ({ ...current, [model]: { status: "success", duration: `${((performance.now() - startedAt) / 1000).toFixed(2)}s`, message: result } }));
-        } catch (error) {
-            setTestResults((current) => ({ ...current, [model]: { status: "error", message: error instanceof Error ? error.message : "测试失败" } }));
-        } finally {
-            setTestingModels((current) => current.filter((item) => item !== model));
-        }
+    const testModelOnline = async (_model: string) => {
+        message.info("项目生成与积分结算开放后，才能进行模型调用测试。");
     };
 
     const batchTestModels = async () => {
@@ -833,7 +821,7 @@ export default function AdminSettingsPage() {
                                             width: 220,
                                             render: (_, item) => (
                                                 <Space size={4}>
-                                                    {!isWorkflowProtocol(item.protocol) ? <Button size="small" onClick={() => openTestDialog(item._index)}>测试</Button> : null}
+                                                    {!isWorkflowProtocol(item.protocol) ? <Button size="small" disabled title="项目生成与积分结算开放后才能测试模型">测试未开放</Button> : null}
                                                     <Button size="small" onClick={() => openChannelDrawer(item._index)}>
                                                         编辑
                                                     </Button>
@@ -1014,7 +1002,7 @@ export default function AdminSettingsPage() {
                     footer={
                         <Space>
                             <Button onClick={closeTestDialog}>取消</Button>
-                            <Button type="primary" disabled={!selectedTestModels.length || testingModels.length > 0} onClick={() => void batchTestModels()}>
+                            <Button type="primary" disabled onClick={() => void batchTestModels()}>
                                 批量测试 {selectedTestModels.length} 个模型
                             </Button>
                         </Space>
@@ -1022,7 +1010,7 @@ export default function AdminSettingsPage() {
                     destroyOnHidden
                 >
                     <Flex vertical gap={12}>
-                        <Typography.Text type="secondary">测试会向选中模型发送最小测试请求，用于确认渠道是否有响应。</Typography.Text>
+                        <Typography.Text type="secondary">模型调用测试暂未开放；项目生成与积分结算接入后再启用。渠道配置和模型列表读取仍可使用。</Typography.Text>
                         <Input.Search placeholder="搜索模型..." allowClear value={testKeyword} onChange={(event) => setTestKeyword(event.target.value)} />
                         <Table
                             rowKey="model"
@@ -1059,7 +1047,7 @@ export default function AdminSettingsPage() {
                                     key: "actions",
                                     width: 120,
                                     render: (_, item) => (
-                                        <Button size="small" loading={testingModels.includes(item.model)} onClick={() => void testModelOnline(item.model)}>
+                                        <Button size="small" disabled loading={testingModels.includes(item.model)} onClick={() => void testModelOnline(item.model)}>
                                             测试
                                         </Button>
                                     ),

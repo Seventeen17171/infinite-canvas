@@ -13,16 +13,20 @@ type FormValues = { title: string; summary: string; producerId: string };
 export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { open: boolean; project?: ProductionProject; onClose: () => void; onSaved: (value: ProductionProject) => void; onReload?: () => Promise<ProductionProject | undefined> }) {
     const { message } = App.useApp();
     const token = useUserStore((state) => state.token);
+    const user = useUserStore((state) => state.user);
+    const canAssign = user?.role === "admin" || Boolean(user?.canAssignProjects);
     const pathname = usePathname();
     const [form] = Form.useForm<FormValues>();
     const titleRef = useRef<InputRef>(null);
     const dialogRef = useRef<HTMLDivElement>(null);
     const [pending, setPending] = useState(false);
+    const [unknown, setUnknown] = useState(false);
     const [reloading, setReloading] = useState(false);
     const [error, setError] = useState("");
     const [conflict, setConflict] = useState(false);
     const [revision, setRevision] = useState(0);
-    const request = useRef<{ fingerprint: string; id: string } | null>(null);
+    const request = useRef<{ fingerprint: string; id: string; payload: FormValues } | null>(null);
+    const submitting = useRef(false);
     const currentRoute = useRef(pathname);
     currentRoute.current = pathname;
     const mounted = useRef(true);
@@ -37,36 +41,48 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
         activeDialog.current++;
         if (!open) return;
         form.resetFields();
-        form.setFieldsValue({ title: "", summary: "", producerId: project?.producerId });
+        form.setFieldsValue({ title: "", summary: "", producerId: project?.producerId || user?.id });
         setRevision(project?.revision || 0);
         setError("");
         setConflict(false);
         setPending(false);
+        setUnknown(false);
         setReloading(false);
         request.current = null;
-    }, [open, project?.id, form]);
-    const producers = useQuery({ queryKey: ["production", "producers", token, open], queryFn: () => fetchProducers(token), enabled: Boolean(open && token), retry: false, staleTime: 0 });
+    }, [open, project?.id, token, user?.id, form]);
+    const producers = useQuery({ queryKey: ["production", "producers", token, open], queryFn: () => fetchProducers(token), enabled: Boolean(open && token && canAssign), retry: false, staleTime: 0 });
+    const producerOptions = [...(producers.data?.items || [])];
+    if (user && !producerOptions.some((person) => person.id === user.id)) producerOptions.unshift({ id: user.id, username: user.username, displayName: user.displayName });
+    useEffect(() => {
+        if (!pending && !unknown) return;
+        const warn = (event: BeforeUnloadEvent) => { event.preventDefault(); event.returnValue = ""; };
+        window.addEventListener("beforeunload", warn);
+        return () => window.removeEventListener("beforeunload", warn);
+    }, [pending, unknown]);
 
     const submit = async () => {
-        if (pending || reloading || conflict) return;
+        if (submitting.current || reloading || conflict) return;
+        submitting.current = true;
         let values: FormValues;
         try {
             values = await form.validateFields();
         } catch {
+            submitting.current = false;
             return;
         }
         const route = pathname;
         const dialog = activeDialog.current;
         const isCurrent = () => mounted.current && activeDialog.current === dialog && currentRoute.current === route && useUserStore.getState().token === token;
-        const payload = { title: values.title?.trim() || "", summary: values.summary?.trim() || "", producerId: values.producerId };
+        const payload = unknown && request.current ? request.current.payload : { title: values.title?.trim() || "", summary: values.summary?.trim() || "", producerId: values.producerId };
         const fingerprint = JSON.stringify(payload);
-        if (!request.current || request.current.fingerprint !== fingerprint) request.current = { fingerprint, id: crypto.randomUUID() };
+        if (!request.current || request.current.fingerprint !== fingerprint) request.current = { fingerprint, id: crypto.randomUUID(), payload };
         setPending(true);
         setError("");
         try {
             const result = project ? await assignProductionProject(token, project.id, values.producerId, revision) : await createProductionProject(token, { ...payload, requestId: request.current.id });
             if (!isCurrent()) return;
-            message.success(project ? "制作负责人已改派" : "项目已创建并分派");
+            setUnknown(false);
+            message.success(project ? "制作负责人已改派" : "项目已创建");
             onSaved(result);
         } catch (failure) {
             if (!isCurrent()) return;
@@ -75,8 +91,12 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
                 return;
             }
             setError(failure instanceof Error ? failure.message : "保存失败，请重试");
+            const definitive = failure instanceof ApiError && failure.status >= 400 && failure.status < 500;
+            setUnknown(!project && !definitive);
+            if (definitive) request.current = null;
             setConflict(Boolean(project && failure instanceof ApiError && failure.status === 409));
         } finally {
+            submitting.current = false;
             if (isCurrent()) setPending(false);
         }
     };
@@ -107,18 +127,18 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
             title={project ? "改派制作负责人" : "创建项目"}
             open={open}
             width={560}
-            okText={project ? "保存改派" : "创建并分派"}
+            okText={project ? "保存改派" : unknown ? "重试创建" : "创建项目"}
             cancelText="取消"
             confirmLoading={pending}
             onOk={() => void submit()}
             onCancel={() => {
-                if (!pending) onClose();
+                if (!pending && !unknown) onClose();
             }}
-            keyboard={!pending}
+            keyboard={!pending && !unknown}
             maskClosable={false}
-            closable={!pending}
-            cancelButtonProps={{ disabled: pending }}
-            okButtonProps={{ disabled: reloading || conflict || !producers.data?.items.length || producers.isFetching }}
+            closable={!pending && !unknown}
+            cancelButtonProps={{ disabled: pending || unknown }}
+            okButtonProps={{ disabled: reloading || conflict || Boolean(project && (producers.isFetching || !producers.data?.items.length)) }}
             destroyOnHidden
             modalRender={(content) => (
                 <div
@@ -148,12 +168,13 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
             }}
         >
             <Typography.Paragraph type="secondary" style={{ marginTop: 12 }}>
-                {project ? `当前负责人：${project.producerName}。改派后，原负责人将失去该项目的访问权限。` : "创建时指定制作负责人。负责人登录后，只能访问获分派的项目。"}
+                {project ? `当前负责人：${project.producerName}。改派后，原负责人若不是创建者，将失去该项目的访问权限。` : "创建后默认由你担任制作组长。可以先编辑画布、整理提示词，再申请项目所需总积分。"}
             </Typography.Paragraph>
             {error && (
                 <Alert
                     type="error"
                     title={error}
+                    description={unknown ? "尚未确认创建结果，输入已锁定。请重试原请求，避免重复创建。" : undefined}
                     showIcon
                     style={{ marginBottom: 18 }}
                     action={
@@ -165,7 +186,7 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
                     }
                 />
             )}
-            {producers.isError && (
+            {canAssign && producers.isError && (
                 <Alert
                     type="error"
                     title={producers.error.message}
@@ -177,11 +198,11 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
                     }
                 />
             )}
-            {!producers.isFetching && producers.data?.items.length === 0 && (
+            {canAssign && !producers.isFetching && producers.data?.items.length === 0 && (
                 <Alert
                     type="info"
                     title="暂无可分派的制作人员"
-                    description="请由管理员在账号管理中新增状态正常的普通账号，再重新载入人员列表。"
+                    description="可以由本人负责新项目；需要改派时，请重新载入状态正常的账号列表。"
                     style={{ marginBottom: 18 }}
                     action={
                         <Button size="small" onClick={() => void producers.refetch()}>
@@ -190,7 +211,7 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
                     }
                 />
             )}
-            <Form form={form} layout="vertical" requiredMark={false} disabled={pending} onFinish={() => void submit()}>
+            <Form form={form} layout="vertical" requiredMark={false} disabled={pending || unknown} onFinish={() => void submit()}>
                 {!project && (
                     <>
                         <Form.Item
@@ -210,11 +231,12 @@ export function ProjectDialog({ open, project, onClose, onSaved, onReload }: { o
                 )}
                 <Form.Item name="producerId" label="制作负责人" rules={[{ required: true, message: "请选择制作负责人" }]}>
                     <Select
+                        disabled={!canAssign || pending || unknown}
                         showSearch
                         optionFilterProp="label"
                         loading={producers.isFetching}
                         placeholder="选择制作人员"
-                        options={(producers.data?.items || []).map((person) => ({ value: person.id, label: person.displayName ? `${person.displayName}（${person.username}）` : person.username }))}
+                        options={producerOptions.map((person) => ({ value: person.id, label: person.displayName ? `${person.displayName}（${person.username}）` : person.username }))}
                     />
                 </Form.Item>
                 <button type="submit" hidden aria-hidden />

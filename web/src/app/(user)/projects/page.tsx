@@ -21,7 +21,7 @@ export default function ProjectsPage() {
     const [keyword, setKeyword] = useState("");
     const [page, setPage] = useState(1);
     const [creating, setCreating] = useState(false);
-    const canCreate = user?.role === "admin" || Boolean(user?.canCreateProjects && user.canAssignProjects);
+    const canCreate = Boolean(user && user.role !== "guest");
     const query = useQuery({
         queryKey: ["production", "projects", token, keyword, page],
         queryFn: () => fetchProductionProjects(token, { keyword, page, pageSize: 12 }),
@@ -114,8 +114,8 @@ export default function ProjectsPage() {
                             <div className={styles.emptyIcon}>
                                 <ProjectIcon name="projects" />
                             </div>
-                            <h2>{keyword ? "没有找到相关项目" : canCreate ? "开始第一个制作项目" : "暂无获分派的项目"}</h2>
-                            <p>{keyword ? "尝试其他关键词，或清除搜索查看全部获授权项目。" : canCreate ? "创建项目并指定制作负责人，让画面和资产创作拥有共同的项目归属。" : "管理人员分派项目后，会在这里出现。你可以联系项目管理人员安排制作任务。"}</p>
+                            <h2>{keyword ? "没有找到相关项目" : canCreate ? "开始第一个制作项目" : "暂无项目"}</h2>
+                            <p>{keyword ? "尝试其他关键词，或清除搜索查看全部获授权项目。" : canCreate ? "创建项目后，你将默认担任制作组长，可开始筹备并申请项目积分。" : "登录有效账号后可创建项目。"}</p>
                         </div>
                     </div>
                 )}

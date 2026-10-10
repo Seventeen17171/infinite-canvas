@@ -35,12 +35,12 @@ export default function AdminUsersPage() {
     useEffect(() => {
         if (editingUser) {
             form.resetFields();
-            form.setFieldsValue({ role: "user", status: "active", canCreateProjects: false, canAssignProjects: false, ...editingUser, password: "" });
+            form.setFieldsValue({ role: "user", status: "active", canAssignProjects: false, ...editingUser, password: "" });
         }
     }, [editingUser, form]);
 
     useEffect(() => {
-        if (selectedRole === "admin") form.setFieldsValue({ canCreateProjects: true, canAssignProjects: true });
+        if (selectedRole === "admin") form.setFieldsValue({ canAssignProjects: true });
     }, [form, selectedRole]);
 
     const saveUser = async () => {
@@ -56,7 +56,7 @@ export default function AdminUsersPage() {
                 displayName: value.displayName || "",
                 role: value.role,
                 status: value.status,
-                canCreateProjects: Boolean(value.canCreateProjects),
+                canCreateProjects: Boolean(editingUser?.canCreateProjects),
                 canAssignProjects: Boolean(value.canAssignProjects),
             });
             setEditingUser(null);
@@ -103,9 +103,9 @@ export default function AdminUsersPage() {
             width: 170,
             render: (_, item) => (
                 <Space size={4}>
-                    {item.role === "admin" || item.canCreateProjects ? <Tag>创建</Tag> : null}
+                    {item.status === "active" ? <Tag>创建</Tag> : null}
                     {item.role === "admin" || item.canAssignProjects ? <Tag>分派</Tag> : null}
-                    {item.role !== "admin" && !item.canCreateProjects && !item.canAssignProjects ? <Typography.Text type="secondary">制作人员</Typography.Text> : null}
+                    {item.role !== "admin" && !item.canAssignProjects ? <Typography.Text type="secondary">制作人员</Typography.Text> : null}
                 </Space>
             ),
         },
@@ -274,12 +274,9 @@ export default function AdminUsersPage() {
                     <Divider style={{ margin: "4px 0 16px" }} />
                     <Typography.Text strong>项目权限</Typography.Text>
                     <Typography.Paragraph type="secondary" style={{ margin: "8px 0 12px" }}>
-                        {selectedRole === "admin" ? "管理员默认拥有创建和分派权限。" : "同时开启创建与分派后，该账号可以创建项目并指定制作负责人。"}
+                        {selectedRole === "admin" ? "所有正常账号均可创建自己的项目，管理员可分派负责人。" : "所有正常账号均可创建自己的项目。开启分派权限后，才可指定其他制作负责人。"}
                     </Typography.Paragraph>
                     <Flex gap={24}>
-                        <Form.Item name="canCreateProjects" valuePropName="checked">
-                            <Checkbox disabled={selectedRole === "admin"}>允许创建项目</Checkbox>
-                        </Form.Item>
                         <Form.Item name="canAssignProjects" valuePropName="checked">
                             <Checkbox disabled={selectedRole === "admin"}>允许分派项目</Checkbox>
                         </Form.Item>

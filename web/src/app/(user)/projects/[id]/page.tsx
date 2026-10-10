@@ -6,6 +6,8 @@ import { Alert, Button, Spin } from "antd";
 import Link from "next/link";
 import dayjs from "dayjs";
 import { useQueryClient } from "@tanstack/react-query";
+import { ProjectBudgetSection } from "@/components/production-budget/project-budget";
+import { ApiError } from "@/services/api/request";
 import { ProjectIcon } from "@/components/ui/project-icon";
 import { ProjectHeader } from "../project-header";
 import { ProjectDialog } from "../project-dialog";
@@ -27,7 +29,8 @@ export default function ProjectPage() {
                 </div>
             </>
         );
-    if (!project || query.isError)
+    const denied = query.error instanceof ApiError && [401, 403, 404].includes(query.error.status);
+    if (!project || denied)
         return (
             <>
                 <ProjectHeader />
@@ -44,6 +47,7 @@ export default function ProjectPage() {
         <>
             <ProjectHeader project={project} />
             <main className={styles.content}>
+                {query.isError && <Alert style={{ marginBottom: 22 }} type="warning" title="暂时无法刷新项目" description="已保留当前预算申请输入，请在连接恢复后刷新。" action={<Button onClick={() => void query.refetch()}>重试</Button>} />}
                 <section className={styles.projectIntro}>
                     <div className={styles.headingRow} style={{ marginBottom: 0 }}>
                         <h1 className={styles.heading}>{project.title}</h1>
@@ -59,6 +63,7 @@ export default function ProjectPage() {
                         <span>创建于 {dayjs(project.createdAt).format("YYYY-MM-DD")}</span>
                     </div>
                 </section>
+                <ProjectBudgetSection projectId={project.id} />
                 <section className={styles.workspaceGrid} aria-label="项目工作台">
                     <Link href={`${base}/canvas`} className={styles.workspaceLink}>
                         <span className={styles.workspaceIcon}>

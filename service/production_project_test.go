@@ -34,16 +34,17 @@ func TestProductionProjectRequestBounds(t *testing.T) {
 }
 
 func TestProductionProjectEffectivePermissions(t *testing.T) {
-	for _, user := range []model.User{
-		{Role: model.UserRoleAdmin},
-		{Role: model.UserRoleUser},
-		{Role: model.UserRoleUser, CanCreateProjects: true},
-		{Role: model.UserRoleUser, CanAssignProjects: true},
-		{Role: model.UserRoleGuest, CanCreateProjects: true, CanAssignProjects: true},
-	} {
-		public := model.PublicUser(user)
-		if public.CanCreateProjects != (user.Role == model.UserRoleAdmin || user.Role == model.UserRoleUser && user.CanCreateProjects) || public.CanAssignProjects != (user.Role == model.UserRoleAdmin || user.Role == model.UserRoleUser && user.CanAssignProjects) {
-			t.Fatalf("wrong effective permission for %+v", user)
+	for _, status := range []model.UserStatus{model.UserStatusActive, model.UserStatusBan} {
+		for _, role := range []model.UserRole{model.UserRoleAdmin, model.UserRoleUser, model.UserRoleGuest} {
+			for _, assign := range []bool{false, true} {
+				user := model.User{Role: role, Status: status, CanCreateProjects: false, CanAssignProjects: assign}
+				public := model.PublicUser(user)
+				canCreate := status == model.UserStatusActive && (role == model.UserRoleAdmin || role == model.UserRoleUser)
+				canAssign := status == model.UserStatusActive && (role == model.UserRoleAdmin || role == model.UserRoleUser && assign)
+				if public.CanCreateProjects != canCreate || public.CanAssignProjects != canAssign {
+					t.Fatalf("wrong effective permission for %+v", user)
+				}
+			}
 		}
 	}
 }

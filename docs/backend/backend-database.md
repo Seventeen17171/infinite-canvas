@@ -37,6 +37,10 @@ description: 当前后端主要数据表与字段说明
 - `production_canvas_documents`
 - `canvas_document_requests`
 - `project_requests`
+- `production_project_budgets`
+- `production_budget_applications`
+- `production_budget_grants`
+- `production_budget_requests`
 - `user_configs`
 - `storage_objects`
 
@@ -55,7 +59,7 @@ description: 当前后端主要数据表与字段说明
 | `display_name` | string | 昵称 |
 | `avatar_url` | string | 头像地址 |
 | `role` | string | 角色：`user`、`admin` |
-| `can_create_projects` | boolean | 普通账号项目创建权限，默认 false；管理员有效权限为 true |
+| `can_create_projects` | boolean | 历史创建权限列保留；不再作为创建门槛，所有 active 普通账号与管理员可创建 |
 | `can_assign_projects` | boolean | 普通账号项目分派权限，默认 false；管理员有效权限为 true |
 | `credits` | decimal(20,2) | 算力点余额 |
 | `aff_code` | string | 用户自己的邀请码，唯一索引 |
@@ -80,11 +84,11 @@ description: 当前后端主要数据表与字段说明
 | `title` | string | 规范化后 1–80 字，无控制字符 |
 | `summary` | text | 最多 500 字，允许正常换行 |
 | `created_by` | string | 由服务端当前账号写入，索引 |
-| `producer_id` | string | 当前有效普通账号制作负责人，索引 |
+| `producer_id` | string | 当前有效普通账号或管理员制作组长，索引；创建缺省为当前账号 |
 | `revision` | int64 | 初始 1，条件改派成功后递增 |
 | `created_at` / `updated_at` | string | UTC 时间 |
 
-创建和改派事务重新核对权限、账号与负责人状态；改派按 `id + revision` 条件更新。被项目引用的创建者或当前负责人不能删除。账号禁用与权限撤销由请求时服务端重新读取生效。
+创建和改派事务重新核对权限、账号与负责人状态。所有 active 普通账号与管理员可创建自己负责的项目；指定其他组长仍需分派权限。改派按 `id + revision` 条件更新。被项目引用的创建者或当前负责人不能删除；预算历史申请人、审批人、拨付操作人也不能删除。账号禁用与权限撤销由请求时服务端重新读取生效。
 
 ### production_workspaces
 
@@ -107,7 +111,43 @@ description: 当前后端主要数据表与字段说明
 | `payload_hash` | string | 规范化名称、说明与负责人的 SHA-256 摘要 |
 | `project_id` | string | 已创建项目 ID |
 
-同键同内容返回原项目，同键不同内容返回冲突。SQLite 使用单连接、WAL 和 5000 ms 忙等待，限定本机短元数据事务；PostgreSQL/MySQL 的账号行按 ID 排序加锁，不把该配置当作生产多进程或 AI 容量验证。登录只定向更新登录/资料字段，原管理员积分调整只定向更新余额/时间，避免旧快照回写项目权限；积分日志规则仍沿用原实现，本阶段未实现新账本。
+同键同内容返回原项目，同键不同内容返回冲突。省略负责人和显式指定本人先规范化成同一输入，不会重复创建。SQLite 使用单连接、WAL 和 5000 ms 忙等待，限定本机短元数据事务；PostgreSQL/MySQL 的账号行按 ID 排序加锁，不把该配置当作生产多进程或 AI 容量验证。登录只定向更新登录/资料字段，避免旧快照回写项目权限。个人积分历史保留，项目预算不读写个人余额或个人流水。
+
+### production_project_budgets
+
+项目独立批准额度，`project_id` 主键；`approved_total` 为 int64 正整数总额（尚未申请时视为 0），`revision` 为条件更新版本，`updated_at` 为 UTC 时间。旧项目不自动获批或迁移个人余额。首次申请事务创建零额度、revision=1 的行；GET 无行时返回总额 0、revision=0，不产生写入。每次批准追加目标总额与已批准总额的差额，预算 revision 加 1；驳回不改预算。
+
+当前只记录管理员拨付的项目额度，尚未接入模型任务预占、消费、退款；不能把总额度称作经过模型费用结算的可用余额。免费文本画布筹备不受预算批准限制。旧个人生成接口关闭，项目任务验收后才可开放模型执行。
+
+### production_budget_applications
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `id` / `project_id` | string | 申请主键与所属项目 |
+| `pending_project_id` | nullable string | 待审批时等于项目 ID，决定后置空；唯一索引保证每项目最多一条待审批 |
+| `applicant_id` / `applicant_name` | string | 当前制作组长账号与提交时姓名快照 |
+| `target_total` | int64 | 目标总额，1 至 1,000,000,000，必须高于当前批准总额 |
+| `reason` | text | 去首尾空白后 1–500 字用途，拒绝异常控制字符 |
+| `status` / `revision` | string / int64 | `pending` 初始版本 1；条件决定后变 `approved` 或 `rejected`，版本加 1 |
+| `decided_by` / `decided_by_name` | string | 管理员账号及决定时姓名快照 |
+| `decision_note` | text | 批准说明最多 500 字，可空；驳回必须 1–500 字 |
+| `created_at` / `updated_at` | string | 固定纳秒精度 UTC 时间，用于稳定历史排序 |
+
+组长申请时锁定有效账号、项目行，再检查当前组长身份、幂等记录、目标总额与待审批数量。项目创建者若已不是组长只能读取，不能申请。改派不自动批准或丢弃已有申请，管理员看到当前组长与原申请人。
+
+GET `/api/v1/production/projects/:id/budget` 仅创建者/当前组长可读，返回总额、预算版本、`canApply`、最近 20 条申请和历史总数。POST `/budget-applications` 同范围，接收 `{targetTotal,reason,requestId}`；响应附 `applicationId` 标明本次原申请，即使幂等重放时该记录已离开最近 20 条窗口。每条申请展示当前项目名、组长名和批准总额；审批回执重放例外，返回决定当时的完整快照。
+
+管理员 GET `/api/admin/production/budget-applications` 支持分页与 `pending/approved/rejected` 筛选；POST `/:applicationId/decision` 接收 `{decision,note,revision,requestId}`。审批仅授予预算元数据读取，不授予其他项目画布/资源访问。
+
+### production_budget_grants
+
+项目拨付流水：`id` 主键、`project_id` 索引、`application_id` 唯一、`amount` int64 正增量、`approved_total` 批准后总額、`actor_id` 管理员、`created_at` 时间。只有 approved 决定写入，每申请最多一笔；申请条件更新、预算 CAS、拨付和回执共同提交或回滚。无个人资金转账、收费或隐式自批。
+
+### production_budget_requests
+
+`actor_id + request_id` 联合主键；保存 `payload_hash`、`project_id`、`application_id`，审批另存 `decision_json` 完整不可变回执。摘要包含操作类型、项目/申请及规范化输入；同键异内容/对象/操作返回 409。同键提交返回原申请身份及项目当前预算视图，决定重放返回原回执，不重复拨付。
+
+所有重放均先重查账号与当前权限；被禁用、改派撤权或失去管理员身份后不可用旧键绕过。审批先锁管理员账号、再锁项目行，重读申请后按 `pending + revision` 更新，与其他审批及改派使用同一项目锁。当前 SQLite 单进程验证不代表多实例生产数据库或 20 人 AI 容量。
 
 ### production_canvas_documents
 

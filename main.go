@@ -5,7 +5,6 @@ import (
 	"net"
 
 	"github.com/tigerowo/infinite-canvas/config"
-	"github.com/tigerowo/infinite-canvas/handler"
 	"github.com/tigerowo/infinite-canvas/router"
 	"github.com/tigerowo/infinite-canvas/service"
 )
@@ -21,6 +20,6 @@ func main() {
 		service.StartPromptSyncScheduler()
 	}
 	service.StartCanvasProjectCleanupScheduler()
-	handler.StartVideoTaskPoller()
+	// Personal-balance tasks stay dormant until project-owned execution and settlement are connected.
 	log.Fatal(router.New().Run(net.JoinHostPort(config.Cfg.BindHost, config.Cfg.Port)))
 }

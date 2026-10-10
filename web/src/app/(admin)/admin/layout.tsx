@@ -7,11 +7,13 @@ import { usePathname, useRouter } from "next/navigation";
 import type { ReactNode } from "react";
 import { useEffect } from "react";
 
+import { ProjectIcon } from "@/components/ui/project-icon";
 import { UserStatusActions } from "@/components/layout/user-status-actions";
 import { adminLayoutStyle } from "@/lib/app-theme";
 import { useUserStore } from "@/stores/use-user-store";
 
 const adminMenus = [
+    { key: "/admin/project-budgets", icon: <ProjectIcon name="budget" />, label: "项目积分审批" },
     { key: "/admin/users", icon: <UserOutlined />, label: "用户管理" },
     { key: "/admin/credit-logs", icon: <TransactionOutlined />, label: "算力点日志" },
     { key: "/admin/ai-logs", icon: <AuditOutlined />, label: "AI 日志" },
@@ -28,7 +30,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
     const user = useUserStore((state) => state.user);
     const isReady = useUserStore((state) => state.isReady);
     const logout = useUserStore((state) => state.clearSession);
-    const activeKey = pathname.startsWith("/admin/settings")
+    const activeKey = pathname.startsWith("/admin/project-budgets")
+        ? "/admin/project-budgets"
+        : pathname.startsWith("/admin/settings")
         ? "/admin/settings"
         : pathname.startsWith("/admin/assets")
           ? "/admin/assets"
@@ -41,7 +45,9 @@ export default function AdminLayout({ children }: { children: ReactNode }) {
                 : pathname.startsWith("/admin/users")
                   ? "/admin/users"
                   : "";
-    const pageTitle = pathname.startsWith("/admin/settings")
+    const pageTitle = pathname.startsWith("/admin/project-budgets")
+        ? "项目积分审批"
+        : pathname.startsWith("/admin/settings")
         ? "系统设置"
         : pathname.startsWith("/admin/assets")
           ? "素材库管理"

@@ -1,5 +1,6 @@
 import {
     AppstoreOutlined,
+    AuditOutlined,
     AimOutlined,
     ArrowLeftOutlined,
     ArrowRightOutlined,
@@ -30,6 +31,7 @@ import {
 import type { CSSProperties } from "react";
 
 const icons = {
+    budget: AuditOutlined,
     menu: MenuOutlined,
     panelOpen: MenuUnfoldOutlined,
     panelClose: MenuFoldOutlined,

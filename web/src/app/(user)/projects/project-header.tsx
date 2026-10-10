@@ -18,6 +18,7 @@ function AccountActions() {
     return (
         <div className={styles.actions}>
             <span className={styles.accountName}>{user?.displayName || user?.username}</span>
+            {user?.role === "admin" && <Button type="text" href="/admin/project-budgets" icon={<ProjectIcon name="budget" />}>项目积分审批</Button>}
             {user?.role === "admin" && (
                 <Button type="text" href="/admin/users" icon={<ProjectIcon name="team" />}>
                     账号管理

@@ -215,6 +215,18 @@ func DeleteUser(id string) error {
 		if references > 0 {
 			return ErrUserReferencedByProject
 		}
+		if err := db.Model(&model.ProductionBudgetApplication{}).Where("applicant_id = ? OR decided_by = ?", id, id).Count(&references).Error; err != nil {
+			return err
+		}
+		if references > 0 {
+			return ErrUserReferencedByProject
+		}
+		if err := db.Model(&model.ProductionBudgetGrant{}).Where("actor_id = ?", id).Count(&references).Error; err != nil {
+			return err
+		}
+		if references > 0 {
+			return ErrUserReferencedByProject
+		}
 		return db.Delete(&model.User{}, "id = ?", id).Error
 	})
 }

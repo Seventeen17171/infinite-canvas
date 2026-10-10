@@ -199,6 +199,13 @@ func GetProductionWorkspace(ctx context.Context, id, kind string) (model.Product
 }
 
 func CreateProductionProject(ctx context.Context, request CreateProductionProjectRequest) (model.ProductionProjectView, error) {
+	identity, ok := UserFromContext(ctx)
+	if !ok || identity.ID == "" {
+		return model.ProductionProjectView{}, projectError(http.StatusUnauthorized, "请先登录")
+	}
+	if strings.TrimSpace(request.ProducerID) == "" {
+		request.ProducerID = identity.ID
+	}
 	request, err := normalizeProductionRequest(request)
 	if err != nil {
 		return model.ProductionProjectView{}, err
@@ -212,8 +219,8 @@ func CreateProductionProject(ctx context.Context, request CreateProductionProjec
 		if err != nil {
 			return err
 		}
-		if !actor.MayCreateProjects() || !actor.MayAssignProjects() {
-			return projectError(http.StatusForbidden, "创建项目需要创建与分派两项权限")
+		if request.ProducerID != actor.ID && !actor.MayAssignProjects() {
+			return projectError(http.StatusForbidden, "只有具备分派权限的人员可以指定其他制作组长")
 		}
 		previous, found, err := tx.Request(actor.ID, request.RequestID)
 		if err != nil {
@@ -230,8 +237,8 @@ func CreateProductionProject(ctx context.Context, request CreateProductionProjec
 			}
 		} else {
 			producer, found := users[request.ProducerID]
-			if !found || producer.Role != model.UserRoleUser || producer.Status != model.UserStatusActive {
-				return projectError(http.StatusBadRequest, "制作负责人必须是有效的普通账号")
+			if !found || !producer.MayCreateProjects() {
+				return projectError(http.StatusBadRequest, "制作组长必须是有效账号")
 			}
 			timestamp := now()
 			project = model.ProductionProject{ID: newID("project"), Title: request.Title, Summary: request.Summary, CreatedBy: actor.ID, ProducerID: producer.ID, Revision: 1, CreatedAt: timestamp, UpdatedAt: timestamp}
@@ -268,8 +275,8 @@ func AssignProductionProject(ctx context.Context, id string, request AssignProdu
 			return projectError(http.StatusForbidden, "仅有分派权限的项目创建者可改派")
 		}
 		producer, found := users[request.ProducerID]
-		if !found || producer.Role != model.UserRoleUser || producer.Status != model.UserStatusActive {
-			return projectError(http.StatusBadRequest, "制作负责人必须是有效的普通账号")
+		if !found || !producer.MayCreateProjects() {
+			return projectError(http.StatusBadRequest, "制作组长必须是有效账号")
 		}
 		timestamp := now()
 		updated, err := tx.Assign(project.ID, producer.ID, request.Revision, timestamp)

@@ -80,7 +80,7 @@ func (tx *ProductionTx) Workspaces(projectIDs []string) ([]model.ProductionWorks
 
 func (tx *ProductionTx) Producers() ([]model.ProductionProducer, error) {
 	items := make([]model.ProductionProducer, 0)
-	err := tx.db.Model(&model.User{}).Select("id, username, display_name").Where("role = ? AND status = ?", model.UserRoleUser, model.UserStatusActive).Order("display_name, username, id").Find(&items).Error
+	err := tx.db.Model(&model.User{}).Select("id, username, display_name").Where("role IN ? AND status = ?", []model.UserRole{model.UserRoleUser, model.UserRoleAdmin}, model.UserStatusActive).Order("display_name, username, id").Find(&items).Error
 	return items, err
 }
 

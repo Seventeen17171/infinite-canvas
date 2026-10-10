@@ -82,11 +82,11 @@ func PublicUser(user User) AuthUser {
 }
 
 func (user User) MayCreateProjects() bool {
-	return user.Role == UserRoleAdmin || (user.Role == UserRoleUser && user.CanCreateProjects)
+	return user.Status == UserStatusActive && (user.Role == UserRoleAdmin || user.Role == UserRoleUser)
 }
 
 func (user User) MayAssignProjects() bool {
-	return user.Role == UserRoleAdmin || (user.Role == UserRoleUser && user.CanAssignProjects)
+	return user.Status == UserStatusActive && (user.Role == UserRoleAdmin || user.Role == UserRoleUser && user.CanAssignProjects)
 }
 
 type CreditLogType string

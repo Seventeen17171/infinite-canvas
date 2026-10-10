@@ -434,7 +434,7 @@ func DeleteCreditLog(id string) error {
 func DeleteUser(id string) error {
 	err := repository.DeleteUser(id)
 	if errors.Is(err, repository.ErrUserReferencedByProject) {
-		return projectError(http.StatusConflict, "该账号仍被项目引用，不能删除")
+		return projectError(http.StatusConflict, "该账号仍被项目或积分记录引用，不能删除")
 	}
 	return err
 }
