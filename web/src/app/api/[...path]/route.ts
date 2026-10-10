@@ -39,7 +39,7 @@ function responseHeaders(response: Response, privateFile: boolean) {
 async function proxy(request: NextRequest, context: RouteContext) {
     const { path } = await context.params;
     const privateFile = path[0] === "v1" && path[1] === "production" && path[2] === "projects"
-        && (path[4] === "files" || (path[4] === "assets" && path[6] === "files"));
+        && (path[4] === "files" || (path[4] === "assets" && ["files", "file-uploads"].includes(path[6])));
     const apiBaseUrl = process.env.API_BASE_URL || "http://127.0.0.1:8080";
     const target = `${apiBaseUrl.replace(/\/$/, "")}/api/${path.map(encodeURIComponent).join("/")}${request.nextUrl.search}`;
     const hasBody = request.method !== "GET" && request.method !== "HEAD";
@@ -51,7 +51,7 @@ async function proxy(request: NextRequest, context: RouteContext) {
             body: hasBody ? request.body : undefined,
             duplex: hasBody ? "half" : undefined,
             redirect: "manual",
-            ...(privateFile ? { cache: "no-store" } : {}),
+            ...(privateFile ? { cache: "no-store", signal: request.signal } : {}),
         } as RequestInit & { duplex?: "half" });
 
         return new Response(request.method === "HEAD" ? null : response.body, {

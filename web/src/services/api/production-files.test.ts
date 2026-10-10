@@ -1,7 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ApiError } from "./request";
-import { fetchAssetFiles, fetchProductionFileBlob, productionFileLimit, type ProductionFile } from "./production-files";
+import { fetchAssetFiles, fetchProductionFileBlob, fetchProductionFileUpload, productionFileLimit, productionImageError, uploadProductionFile, validProductionUpload, type ProductionFile, type ProductionFileUploadRequest } from "./production-files";
 
 const file: ProductionFile = { id: "file-2e43e9f3-8343-4aae-9eb0-cb9a46145d3e", projectId: "project-a", assetId: "asset-a", name: "人物参考.png", mimeType: "image/png", bytes: 3, createdAt: "2026-10-10T00:00:00Z" };
 const signal = () => new AbortController().signal;
@@ -69,5 +69,82 @@ test("denied downloads retain their HTTP status and cancellation does not become
         throw new DOMException("aborted", "AbortError");
     }) as typeof fetch, async () => {
         await assert.rejects(fetchProductionFileBlob("token", "project-a", "asset-a", file, true, controller.signal), (error: unknown) => error instanceof DOMException && error.name === "AbortError");
+    });
+});
+
+const uploadRequest: ProductionFileUploadRequest = { requestId: "ef482bf5-99c6-4198-b075-4a45a3da29bd", projectId: file.projectId, assetId: file.assetId, name: file.name, bytes: file.bytes };
+const imageFile = (name = file.name, bytes = new Uint8Array([1, 2, 3])) => new File([bytes], name, { type: "image/png" });
+
+test("image selection rejects unsupported formats, paths and oversized bytes before upload", async () => {
+    for (const invalid of [{ name: "../人物.png", size: 3, type: "image/png" }, { name: "\t人物.png", size: 3, type: "image/png" }, { name: "人物.png\n", size: 3, type: "image/png" }, { name: "人物.svg", size: 3, type: "image/svg+xml" }, { name: "人物.png", size: productionFileLimit + 1, type: "image/png" }, { name: "人物.png", size: 0, type: "image/png" }, { name: "人物.jpg", size: 3, type: "image/png" }]) assert.ok(productionImageError(invalid));
+    assert.equal(productionImageError({ name: " 人物参考.png ", size: 3, type: "" }), "");
+    assert.ok(validProductionUpload(uploadRequest, "project-a", "asset-a"));
+    assert.equal(validProductionUpload(uploadRequest, "project-b", "asset-a"), false);
+    assert.equal(validProductionUpload({ ...uploadRequest, requestId: "../unsafe" }, "project-a", "asset-a"), false);
+    await withFetch((async () => { assert.fail("invalid upload must never fetch"); }) as typeof fetch, async () => {
+        await assert.rejects(uploadProductionFile("token", uploadRequest, imageFile("other.png"), signal()), rejectStatus(400));
+    });
+});
+
+test("upload sends one original binary file with normalized name, header identity and stable retry UUID", async () => {
+    let calls = 0;
+    await withFetch((async (input, init) => {
+        calls++;
+        assert.equal(input, "/api/v1/production/projects/project-a/assets/asset-a/files");
+        assert.equal(init?.method, "POST");
+        assert.equal(init?.cache, "no-store");
+        assert.equal(init?.redirect, "error");
+        const headers = new Headers(init?.headers);
+        assert.equal(headers.get("authorization"), "Bearer account-token");
+        assert.equal(headers.get("x-upload-request-id"), uploadRequest.requestId);
+        assert.equal(headers.get("content-type"), null, "browser must add the multipart boundary");
+        assert.ok(init?.body instanceof FormData);
+        assert.deepEqual([...init.body.keys()], ["file"]);
+        const uploaded = init.body.get("file") as File;
+        assert.ok((await new Response(init.body).text()).includes(`filename="${file.name}"`));
+        assert.deepEqual(new Uint8Array(await uploaded.arrayBuffer()), new Uint8Array([1, 2, 3]));
+        if (calls === 1) throw new TypeError("lost receipt");
+        return Response.json({ code: 0, data: { requestId: uploadRequest.requestId, file } });
+    }) as typeof fetch, async () => {
+        await assert.rejects(uploadProductionFile("account-token", uploadRequest, imageFile(` ${file.name} `), signal()), rejectStatus(0));
+        const receipt = await uploadProductionFile("account-token", uploadRequest, imageFile(` ${file.name} `), signal());
+        assert.equal(receipt.file.id, file.id);
+        assert.equal(calls, 2);
+    });
+});
+
+test("receipt confirmation uses a fresh authorized GET and rejects swapped ownership or request identity", async () => {
+    await withFetch((async (input, init) => {
+        assert.equal(input, `/api/v1/production/projects/project-a/assets/asset-a/file-uploads/${uploadRequest.requestId}`);
+        assert.equal(init?.method, "GET");
+        assert.equal(init?.body, undefined);
+        assert.equal(new Headers(init?.headers).get("authorization"), "Bearer token");
+        return Response.json({ code: 0, data: { requestId: uploadRequest.requestId, file } });
+    }) as typeof fetch, async () => {
+        assert.equal((await fetchProductionFileUpload("token", uploadRequest, signal())).file.id, file.id);
+    });
+    for (const receipt of [{ requestId: "another-request", file }, { requestId: uploadRequest.requestId, file: { ...file, assetId: "asset-b" } }, { requestId: uploadRequest.requestId, file: { ...file, bytes: 4 } }, { requestId: uploadRequest.requestId, file: { ...file, name: "另一个.png" } }]) {
+        await withFetch((async () => Response.json({ code: 0, data: receipt })) as typeof fetch, async () => {
+            await assert.rejects(fetchProductionFileUpload("token", uploadRequest, signal()), rejectStatus(502));
+        });
+    }
+});
+
+test("upload response loss, conflict, backpressure, rejection and missing receipt remain distinguishable", async () => {
+    for (const status of [400, 401, 403, 404, 409, 413, 415, 422, 429, 500]) {
+        await withFetch((async () => Response.json({ code: 1, msg: "可操作的错误原因" }, { status })) as typeof fetch, async () => {
+            await assert.rejects(uploadProductionFile("token", uploadRequest, imageFile(), signal()), (error: unknown) => error instanceof ApiError && error.status === status && error.message === "可操作的错误原因");
+        });
+    }
+    await withFetch((async () => new Response("", { status: 404 })) as typeof fetch, async () => {
+        await assert.rejects(fetchProductionFileUpload("token", uploadRequest, signal()), rejectStatus(404));
+    });
+    const controller = new AbortController();
+    controller.abort();
+    await withFetch((async (_input, init) => {
+        assert.equal(init?.signal?.aborted, true);
+        throw new DOMException("aborted", "AbortError");
+    }) as typeof fetch, async () => {
+        await assert.rejects(uploadProductionFile("token", uploadRequest, imageFile(), controller.signal), (error: unknown) => error instanceof DOMException && error.name === "AbortError");
     });
 });

@@ -18,7 +18,7 @@ func New() *gin.Engine {
 	api.Use(func(c *gin.Context) {
 		path := c.Request.URL.Path
 		if strings.HasPrefix(path, "/api/files/") || strings.HasPrefix(path, "/api/anonymous/files") || strings.HasPrefix(path, "/api/v1/files") ||
-			(strings.HasPrefix(path, "/api/v1/production/") && strings.Contains(path, "/files")) {
+			(strings.HasPrefix(path, "/api/v1/production/") && (strings.Contains(path, "/files") || strings.Contains(path, "/file-uploads/"))) {
 			handler.PrivateFileHeaders(c.Writer)
 		}
 		c.Next()
@@ -50,6 +50,12 @@ func New() *gin.Engine {
 	production.GET("/projects/:id/assets", func(c *gin.Context) { handler.ProductionAssets(c.Writer, c.Request, c.Param("id")) })
 	production.GET("/projects/:id/assets/:assetId/files", func(c *gin.Context) {
 		handler.ProductionFiles(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
+	production.POST("/projects/:id/assets/:assetId/files", func(c *gin.Context) {
+		handler.UploadProductionFile(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
+	production.GET("/projects/:id/assets/:assetId/file-uploads/:requestId", func(c *gin.Context) {
+		handler.GetProductionFileUpload(c.Writer, c.Request, c.Param("id"), c.Param("assetId"), c.Param("requestId"))
 	})
 	production.GET("/projects/:id/files/:fileId", func(c *gin.Context) {
 		handler.GetProductionFile(c.Writer, c.Request, c.Param("id"), c.Param("fileId"))

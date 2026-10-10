@@ -105,6 +105,7 @@ func DB() (*gorm.DB, error) {
 			&model.ProductionAssetCreative{},
 			&model.ProductionAssetCreativeRequest{},
 			&model.ProductionFile{},
+			&model.ProductionFileUploadRequest{},
 			&model.ProjectRequest{},
 			&model.ProductionProjectBudget{},
 			&model.ProductionBudgetApplication{},

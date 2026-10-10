@@ -644,3 +644,20 @@ RunningHub/ComfyUI 不加入上述普通模型筛选：只下发已启用且已�
 | `admin_adjust` | 后台手动调整 |
 | `ai_consume` | 调用后端模型接口消费 |
 | `ai_refund` | 后端模型接口调用失败返还 |
+
+### production_file_upload_requests（U04b 项目单图上传回执）
+
+| 字段 | 说明 |
+| --- | --- |
+| `actor_id` + `request_id` | 联合主键，规范 UUID 与发起账号绑定 |
+| `project_id` / `asset_id` / `file_id` | 成功文件及项目资产归属 |
+| `payload_hash` | 项目、资产、规范文件名、实际 MIME、字节数及原字节 SHA256 的哈希，不公开 |
+| `created_at` | 成功记录时间 |
+
+`POST /api/v1/production/projects/:id/assets/:assetId/files` 接受一个 `file` multipart part，`X-Upload-Request-Id` 为幂等 UUID。认证及资产授权先于正文读取，提交前在短事务中重新锁定并核查账号与项目；文件记录与回执一起提交。同账号同 UUID 同内容返回原文件，不同内容或资产返回409。`GET .../assets/:assetId/file-uploads/:requestId` 每次重新授权，返回已完成回执；404不能断言旧请求未提交。上传筹备不依赖预算获批，不调用模型或扣积分。
+
+仅静态 PNG/JPEG/WebP，原始字节不重编码，20MiB 上限、总正文20MiB加64KiB、8192像素边长及2400万像素上限；先检查尺寸再完整解码。APNG动画控制块与动画WebP拒绝，WebP还使用官方 `golang.org/x/image` RIFF/VP8/VP8L头解析核对内外尺寸，防止伪造外层尺寸绕过内存限额。`x/image v0.42.0` 的[官方 go.mod](https://raw.githubusercontent.com/golang/image/v0.42.0/go.mod)要求 Go1.25；固定依赖并验证本地构建。
+
+进程最多同时处理2份上传，满载429与Retry-After；单次正文读取deadline为90秒。`PRODUCTION_PROJECT_FILE_COUNT` 默认1000（合法1–100000），`PRODUCTION_PROJECT_FILE_BYTES` 默认2147483648（合法1–1099511627776），越界配置使用默认；末次事务锁定项目后计算配额，重放回执不重复占用。该限制为当前单实例本机交付，并不代表生产多实例容量已通过。
+
+文件写入私有目录0600随机临时文件，Sync后以Root.Link独占发布到服务端生成的 `file-UUID.blob`，Sync目录后才写数据库；普通失败/取消/回执重放清理本请求候选，不删除已有成功文件。数据库Commit结果不确定时保留候选字节，通过原UUID查询回执确认，不能盲目删除。崩溃可能留下无索引私有孤儿，但无HTTP读取权限；本模块不自动删除旧文件、不承诺跨磁盘与数据库事务原子。受控孤儿回收、云对象存储、删除及画布引用后续另卡。
