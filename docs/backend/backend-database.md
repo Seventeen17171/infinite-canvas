@@ -38,6 +38,8 @@ description: 当前后端主要数据表与字段说明
 - `canvas_document_requests`
 - `production_assets`
 - `production_asset_requests`
+- `production_asset_creatives`
+- `production_asset_creative_requests`
 - `project_requests`
 - `production_project_budgets`
 - `production_budget_applications`
@@ -105,7 +107,7 @@ description: 当前后端主要数据表与字段说明
 
 ### production_assets
 
-项目人物/场景资产记录。分类固定为人物 `character`、场景 `scene`，无需另建分类表。只提供名称和描述；没有图片、造型、提示词、模型参数或文件引用字段。
+项目人物/场景资产记录。分类固定为人物 `character`、场景 `scene`，无需另建分类表。此表只保存名称和描述；提示词与创意参数由独立的 `production_asset_creatives` 保存，图片、造型和文件引用尚未接入。
 
 | 字段 | 类型 | 说明 |
 | --- | --- | --- |
@@ -131,6 +133,34 @@ description: 当前后端主要数据表与字段说明
 | `revision` / `updated_at` | int64 / string | 成功提交的版本与时间 |
 
 资产更改与请求回执在同一事务提交，失败一起回滚；同键异内容返回 409。创建重试读取已创建的同一资产当前记录；保存重试返回原提交回执，不覆盖之后的新版本。禁用或改派撤权后不能重放旧请求。该表和生产资产表独立于上游个人 `assets`，不迁移或改写个人素材。
+
+### production_asset_creatives
+
+同一项目资产的图片创意筹备记录，与资料分别保存及计版本，不表示生成任务或模型能力承诺。GET 不存在记录时返回 revision 0 的默认值，不落库；首次 PUT 成功后为 revision 1。
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `project_id` / `asset_id` | string | 联合主键；资产必须属于获授权项目，不设 workspace_id |
+| `prompt` | text | 0–8000 Unicode 字符，保留空白、换行、制表符，不接受其他控制字符 |
+| `model_channel_id` / `model_name` | string | 精确后台渠道 ID 和模型名称，可同时为空；不保存模型连接凭据 |
+| `aspect_ratio` | string | auto / 1:1 / 4:3 / 3:4 / 16:9 / 9:16 |
+| `resolution` | string | auto / 1K / 2K / 4K，目标清晰度意向 |
+| `image_count` | int | 1–4 张的创意意向 |
+| `revision` | int64 | 首次保存为 1，后续按项目、资产与版本 CAS 递增 |
+| `updated_by` / `updated_at` | string | 当前有效账号与保存时间；updated_by 不随创意 API 公开 |
+
+模型候选仅来源于后台启用、有地址与密钥、非工作流且公开开放的图片渠道。显式模型能力优先，否则沿用服务端名称判断。公开候选只有 channelId、channelName、model、protocol；不公开地址、密钥、备注、私有翻译配置或价格。新模型选择必须在候选中；与已存记录完全相同的下架引用允许继续保存筹备文本，不能隐式换成另一个渠道。配置与创意在同一事务读取，避免 SQLite 单连接嵌套查询。比例、清晰度、张数是意向，实际模型调用需另行校验；此表不触发任务或积分流水。
+
+### production_asset_creative_requests
+
+| 字段 | 类型 | 说明 |
+| --- | --- | --- |
+| `actor_id` / `request_id` | string | 账号与规范化 UUID 联合主键，与资产资料回执独立 |
+| `payload_hash` | string | 项目、资产、提示词、模型引用、参数及基础版本等请求字段的 SHA-256 |
+| `project_id` / `asset_id` | string | 成功提交所属项目与资产 |
+| `revision` / `updated_at` | int64 / string | 原提交回执的版本与时间 |
+
+创意和回执原子提交，回执故障同时回滚。每次先验证当前账号和项目/资产权限，再重放相同请求；同键异内容返回 409。revision 0 首次插入竞争与后续 CAS 竞争都仅一个成功，其余 409。旧回执可返回历史提交版本，不倒退服务器当前记录；前端必须显式处理已知新版本。未批准预算仍允许保存，本模块不使用个人余额。
 
 ### project_requests
 

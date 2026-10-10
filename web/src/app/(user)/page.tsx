@@ -10,7 +10,7 @@ export const metadata: Metadata = {
 
 const steps = [
     { title: "创建项目", description: "登录后创建项目，由你担任制作组长，组织这个项目的创作。" },
-    { title: "免费筹备", description: "先写文本、梳理镜头，用分组和连线整理画布，不必等待积分审批。" },
+    { title: "免费筹备", description: "整理文本画布、人物场景与图片提示词，不必等待积分审批。" },
     { title: "申请总积分", description: "按制作需要申请项目总额度，已有额度与追加申请分别记录。" },
     { title: "管理员审批", description: "获批额度归入项目。后续 AI 制作将统一使用项目积分。" },
 ];
@@ -40,7 +40,7 @@ export default function LandingPage() {
                             <Link href="/projects" className={styles.primaryAction} prefetch={false}>进入工作台</Link>
                             <a href="#workflow" className={styles.textAction}>了解制作流程</a>
                         </div>
-                        <p className={styles.heroNote}>文本画布与项目预算已开放，AI 制作能力正在接入。</p>
+                        <p className={styles.heroNote}>文本画布、资产筹备与项目预算已开放，AI 制作正在接入。</p>
                     </div>
 
                     <figure className={styles.diagram} aria-labelledby="diagram-caption">
@@ -77,8 +77,8 @@ export default function LandingPage() {
                             </div>
                             <div className={styles.assetNode}>
                                 <span className={styles.assetGlyph}><ProjectIcon name="assets" /></span>
-                                <div><strong>资产创意</strong><span>同一项目，独立工作台</span></div>
-                                <span className={styles.plannedLabel}>筹建中</span>
+                                <div><strong>资产创意</strong><span>人物场景，提示词筹备</span></div>
+                                <span className={styles.plannedLabel}>已开放</span>
                             </div>
                         </div>
                         <figcaption id="diagram-caption">项目空间示意<span>创作内容按项目组织</span></figcaption>
@@ -109,7 +109,7 @@ export default function LandingPage() {
                     <div className={styles.featureList}>
                         <article className={styles.feature}>
                             <ProjectIcon name="projects" />
-                            <div><h3>项目有自己的空间</h3><p>创建项目、查看负责人，从项目概览进入画面创作与资产创意。项目只对创建者和当前制作组长可见。</p></div>
+                            <div><h3>项目有自己的空间</h3><p>从项目进入画布，建立人物与场景资料，保存各自的图片提示词和参数。项目只对创建者和当前制作组长可见。</p></div>
                         </article>
                         <article className={styles.feature}>
                             <ProjectIcon name="canvas" />
@@ -121,7 +121,7 @@ export default function LandingPage() {
                         </article>
                         <aside className={styles.upcoming} aria-label="后续建设内容">
                             <span>接下来</span>
-                            <p>图片创意工作台、剧本分析与项目 AI 生成将逐步接入；当前尚未开放模型制作与积分结算。</p>
+                            <p>图片资产与画布引用、剧本分析将逐步接入；当前尚未开放 AI 图片/视频生成与积分结算。</p>
                         </aside>
                     </div>
                 </section>

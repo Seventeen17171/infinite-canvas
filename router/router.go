@@ -49,6 +49,12 @@ func New() *gin.Engine {
 	production.PUT("/projects/:id/assets/:assetId", func(c *gin.Context) {
 		handler.SaveProductionAsset(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
 	})
+	production.GET("/projects/:id/assets/:assetId/creative", func(c *gin.Context) {
+		handler.GetProductionAssetCreative(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
+	production.PUT("/projects/:id/assets/:assetId/creative", func(c *gin.Context) {
+		handler.SaveProductionAssetCreative(c.Writer, c.Request, c.Param("id"), c.Param("assetId"))
+	})
 	production.GET("/projects/:id/budget", func(c *gin.Context) { handler.ProductionProjectBudget(c.Writer, c.Request, c.Param("id")) })
 	production.POST("/projects/:id/budget-applications", func(c *gin.Context) { handler.ApplyProductionProjectBudget(c.Writer, c.Request, c.Param("id")) })
 	production.GET("/projects/:id/workspaces/:kind", func(c *gin.Context) {

@@ -10,6 +10,8 @@ import { fetchProductionAssets, type AssetCategory, type ProductionAsset } from 
 import type { ProductionProject } from "@/services/api/production-projects";
 import { useUserStore } from "@/stores/use-user-store";
 import { useAssetSession } from "./use-asset-session";
+import { clearAssetCreativeDrafts, useAssetCreativeSession } from "./use-asset-creative-session";
+import { AssetCreativePanel } from "./asset-creative-panel";
 import styles from "./assets.module.css";
 
 const categories: { value: AssetCategory; label: string; icon: "user" | "scene" }[] = [{ value: "character", label: "人物", icon: "user" }, { value: "scene", label: "场景", icon: "scene" }];
@@ -23,6 +25,7 @@ export function AssetWorkbench({ project }: { project: ProductionProject }) {
 
 function AssetWorkbenchSession({ project }: { project: ProductionProject }) {
     const token = useUserStore((state) => state.token);
+    const actorId = useUserStore((state) => state.user?.id || "");
     const sessionRevision = useUserStore((state) => state.sessionRevision);
     const queryClient = useQueryClient();
     const router = useRouter();
@@ -65,12 +68,19 @@ function AssetWorkbenchSession({ project }: { project: ProductionProject }) {
         void queryClient.invalidateQueries({ queryKey: queryPrefix });
         if (selection === "new") navigate({ asset: asset.id, category: asset.category, page: undefined, q: undefined }, true);
     };
-    const session = useAssetSession(project.id, selection, category, Boolean(token) && !blocked, saved, () => {
+    const accessDenied = () => {
+        clearAssetCreativeDrafts(actorId, project.id);
         queryClient.setQueriesData({ queryKey: queryPrefix }, null);
         setDeniedMessage("此资产已无法访问。请重新载入资产库，确认当前项目权限。");
-    });
+    };
+    const session = useAssetSession(project.id, selection, category, Boolean(token) && !blocked, saved, accessDenied);
+    const creative = useAssetCreativeSession(project.id, selection, Boolean(token) && !blocked && session.authorized && session.asset?.id === selection, accessDenied);
+    useEffect(() => {
+        if (blocked) clearAssetCreativeDrafts(actorId, project.id);
+    }, [blocked, actorId, project.id]);
     const changeSelection = (patch: Record<string, string | undefined>) => {
         if (session.storageError && session.dirty && !window.confirm("本页草稿未能写入浏览器。切换前请先保存；仍要切换吗？")) return;
+        if (creative.storageError && creative.dirty && !window.confirm("创意草稿未能写入浏览器。切换前请先保存；仍要切换吗？")) return;
         navigate(patch);
     };
     const create = () => changeSelection({ category, asset: "new", page: undefined, q: undefined });
@@ -113,7 +123,7 @@ function AssetWorkbenchSession({ project }: { project: ProductionProject }) {
                 <section className={styles.editor} aria-label="资产资料">
                     {blocked ? <div className={styles.empty}><ProjectIcon name="assets" style={{ fontSize: 32 }} /><h2>当前资产无法访问</h2><p>{deniedMessage || query.error?.message}</p><Button onClick={() => { setDeniedMessage(""); navigate({ asset: undefined }, true); void query.refetch(); }}>重新载入资产库</Button></div> : !selection ? <div className={styles.empty}><span className={styles.emptyGlyph}><ProjectIcon name={category === "character" ? "user" : "scene"} /></span><h2>从一份{label}设定开始</h2><p>{category === "character" ? "记录人物的身份、外貌与性格，让角色在整个项目里保持一致。" : "记录场景的空间、时代与氛围，为每个镜头建立共同的环境设定。"}</p><Button type="primary" icon={<ProjectIcon name="plus" />} onClick={create}>新建{label}</Button><span className={styles.preparation}>整理资料无需消耗项目积分</span></div> : session.phase === "loading" && !hasEditor ? <div className={styles.empty}><Spin aria-label="正在加载资产资料" /></div> : !hasEditor ? <div className={styles.empty}><h2>资产暂时无法打开</h2><p>{session.message}</p><Button onClick={() => void session.reload()}>重试打开</Button></div> : <>
                         <header className={styles.editorHeader}>
-                            <div className={styles.editorIdentity}><span className={styles.editorIcon}><ProjectIcon name={category === "character" ? "user" : "scene"} /></span><div><span className={styles.kindLabel}>{label}设定</span><h2 title={session.name || `新建${label}`}>{session.name || `新建${label}`}</h2></div></div>
+                            <div className={styles.editorIdentity}><span className={styles.editorIcon}><ProjectIcon name={category === "character" ? "user" : "scene"} /></span><div><span className={styles.kindLabel}>{label}设定{session.asset ? ` · 资料第 ${session.asset.revision} 版` : ""}</span><h2 title={session.name || `新建${label}`}>{session.name || `新建${label}`}</h2></div></div>
                             <span className={`${styles.status} ${session.dirty || session.retryPending ? styles.unsaved : ""}`} aria-live="polite"><span aria-hidden />{status}</span>
                         </header>
                         <form className={styles.editorForm} onSubmit={(event) => { event.preventDefault(); void session.save(); }}>
@@ -129,11 +139,7 @@ function AssetWorkbenchSession({ project }: { project: ProductionProject }) {
                         </form>
                     </>}
                 </section>
-                <aside className={styles.inspector} aria-label="资产项目信息">
-                    <h2><ProjectIcon name="projects" /> 项目资料</h2>
-                    <dl><dt>所属项目</dt><dd>{project.title}</dd><dt>制作组长</dt><dd>{project.producerName || "未设置"}</dd><dt>资产分类</dt><dd><ProjectIcon name={category === "character" ? "user" : "scene"} /> {label}</dd>{session.asset && !blocked && <><dt>当前版本</dt><dd>第 {session.asset.revision} 版</dd><dt>创建时间</dt><dd><time dateTime={session.asset.createdAt}>{formatTime(session.asset.createdAt)}</time></dd><dt>最近保存</dt><dd><time dateTime={session.asset.updatedAt}>{formatTime(session.asset.updatedAt)}</time></dd></>}</dl>
-                    <div className={styles.libraryNote}><span className={styles.noteLine} /><h3>先建立设定，再展开创作</h3><p>人物与场景统一保存在当前项目。名称可以修改，资产身份始终保留。</p><p>图片创意与画布引用将在后续接入这份资产资料。</p></div>
-                </aside>
+                <AssetCreativePanel session={creative} selected={Boolean(selection)} isNew={isNew} blocked={blocked} projectTitle={project.title} />
             </div>
         </main>
     );

@@ -12,7 +12,7 @@
 .topbar h1 { margin: 0; font-size: 22px; line-height: 1.4; font-weight: 600; letter-spacing: -.5px; }
 .topbar p { margin: 6px 0 0; font-size: 13px; line-height: 1.5; color: #a1a7ae; }
 .scopeNote { display: flex; align-items: center; gap: 8px; color: #a1a7ae; font-size: 12px; white-space: nowrap; }
-.columns { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(300px, 1fr) 216px; }
+.columns { flex: 1; min-height: 0; display: grid; grid-template-columns: 236px minmax(300px, 1fr) 320px; }
 .library { display: flex; flex-direction: column; min-height: 0; min-width: 0; border-right: 1px solid #25272b; background: #08090a; }
 .categories { padding: 14px 12px; display: grid; gap: 4px; border-bottom: 1px solid #25272b; }
 .categories button { display: flex; align-items: center; gap: 10px; color: #a1a7ae; background: transparent; border: 1px solid transparent; border-radius: 6px; padding: 9px 11px; text-align: left; cursor: pointer; font-size: 13px; transition: color 160ms, background 160ms, border-color 160ms; }
@@ -75,24 +75,42 @@
 .empty h2 { font-weight: 500; font-size: 20px; margin: 0; line-height: 1.5; text-align: center; }
 .empty p { max-width: 330px; color: #a1a7ae; font-size: 13px; line-height: 1.9; margin: 13px 0 26px; text-align: center; }
 .preparation { color: #a1a7ae; font-size: 11px; margin-top: 18px; }
-.inspector { min-width: 0; border-left: 1px solid #25272b; background: #08090a; padding: 25px 22px; overflow-y: auto; }
-.inspector h2 { display: flex; align-items: center; gap: 8px; margin: 0 0 28px; color: #d5d9df; font-weight: 500; font-size: 13px; }
-.inspector dl { margin: 0; }
-.inspector dt { color: #979fa9; font-size: 11px; margin: 22px 0 7px; }
-.inspector dd { color: #d5d9df; font-size: 12px; line-height: 1.7; margin: 0; overflow-wrap: anywhere; }
-.libraryNote { margin-top: 36px; }
-.noteLine { display: block; height: 1px; width: 30px; background: #9ba3ae; margin-bottom: 20px; }
-.libraryNote h3 { color: #d5d9df; font-size: 12px; font-weight: 500; line-height: 1.7; margin: 0 0 8px; }
-.libraryNote p { color: #9ba2ac; font-size: 11px; line-height: 1.9; margin: 7px 0 0; }
-.workbench button:focus-visible { outline: 2px solid #d5d9df; outline-offset: 2px; }
+.workbench button:focus-visible, .creativeSelect:focus-visible { outline: 2px solid #d5d9df; outline-offset: 2px; }
 @media (max-width: 1300px) {
-    .columns { grid-template-columns: 208px minmax(280px, 1fr) 188px; }
+    .columns { grid-template-columns: 196px minmax(300px, 1fr) 304px; }
     .topbar { padding: 19px 22px; }
     .editorHeader { padding: 19px 22px; }
     .formFields { padding: 22px; gap: 18px; }
     .saveBar { padding: 15px 22px; }
-    .inspector { padding: 22px 17px; }
 }
 @media (prefers-reduced-motion: reduce) {
     .assetRow, .categories button { transition: none; }
 }
+
+.creativePanel { min-width: 0; min-height: 0; border-left: 1px solid #25272b; background: #08090a; display: flex; flex-direction: column; }
+.creativeHeader { min-height: 96px; padding: 22px 20px; border-bottom: 1px solid #25272b; display: flex; align-items: center; justify-content: space-between; gap: 10px; flex-shrink: 0; }
+.creativeHeader > div { min-width: 0; }
+.creativeHeader h2 { display: flex; gap: 8px; align-items: center; margin: 0; font-size: 14px; line-height: 1.5; font-weight: 500; color: #f4f5f7; }
+.creativeHeader p { margin: 5px 0 0; color: #a1a7ae; font-size: 11px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.creativeForm { display: flex; flex: 1; flex-direction: column; min-height: 0; }
+.creativeFields { display: flex; flex-direction: column; gap: 20px; flex: 1; min-height: 0; overflow-y: auto; padding: 22px 20px; }
+.creativeFields :global(.ant-alert) { font-size: 12px; }
+.creativePrompt { min-height: 168px !important; resize: vertical; line-height: 1.8; font-size: 13px; padding: 12px !important; }
+.creativeSelect { width: 100%; min-width: 0; height: 36px; padding: 0 9px; color: #e5e7eb; background: #101214; border: 1px solid #363a40; border-radius: 6px; font: inherit; font-size: 12px; color-scheme: dark; text-overflow: ellipsis; }
+.creativeSelect:hover:not(:disabled) { border-color: #7b828b; }
+.creativeSelect:disabled { opacity: .5; cursor: not-allowed; }
+.creativeParameters { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 16px 12px; }
+.creativeParameters label { color: #d5d9df; font-size: 12px; }
+.creativeHint, .modelWarning { margin: -2px 0 0; color: #a1a7ae; font-size: 11px; line-height: 1.7; overflow-wrap: anywhere; }
+.modelWarning { color: #d6b97b; }
+.refreshModels { border: 0; padding: 0; color: #a1a7ae; background: transparent; display: inline-flex; align-items: center; gap: 5px; cursor: pointer; font-size: 11px; white-space: nowrap; }
+.refreshModels:hover:not(:disabled) { color: #f4f5f7; }
+.refreshModels:disabled { opacity: .5; cursor: not-allowed; }
+.creativeSaveBar { min-height: 73px; padding: 15px 20px; border-top: 1px solid #25272b; display: flex; gap: 10px; align-items: center; justify-content: space-between; flex-shrink: 0; }
+.creativeSaveBar > div { display: flex; flex-direction: column; min-width: 0; gap: 5px; color: #a1a7ae; font-size: 10px; line-height: 1.5; }
+.creativeSaveBar small { font-size: 10px; }
+.creativeSaveBar button { flex-shrink: 0; }
+.creativeEmpty { display: flex; flex-direction: column; align-items: flex-start; gap: 12px; padding: 34px 24px; color: #a1a7ae; font-size: 12px; line-height: 1.8; }
+.creativeEmpty h3 { margin: 4px 0 0; color: #d5d9df; font-size: 14px; font-weight: 500; }
+.creativeEmpty p { margin: 0; }
+.creativeEmpty > span:last-child { font-size: 11px; }

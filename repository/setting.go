@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 
 	"github.com/tigerowo/infinite-canvas/model"
+	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
 
@@ -13,6 +14,15 @@ func GetSettings() (model.Settings, error) {
 	if err != nil {
 		return model.Settings{}, err
 	}
+	return settingsFromDB(db)
+}
+
+// Settings uses the active transaction, including SQLite's single connection.
+func (tx *ProductionTx) Settings() (model.Settings, error) {
+	return settingsFromDB(tx.db)
+}
+
+func settingsFromDB(db *gorm.DB) (model.Settings, error) {
 	var items []model.Setting
 	if err := db.Find(&items).Error; err != nil {
 		return model.Settings{}, err

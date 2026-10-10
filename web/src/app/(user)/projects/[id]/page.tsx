@@ -80,7 +80,7 @@ export default function ProjectPage() {
                         </span>
                         <div className={styles.workspaceInfo}>
                             <h2>资产创意</h2>
-                            <p>角色、场景与道具的创意空间。</p>
+                            <p>整理人物、场景资料与图片提示词。</p>
                         </div>
                         <span className={styles.workspaceEnter}>
                             进入资产创意 <ProjectIcon name="enter" />
